@@ -315,6 +315,20 @@ export function CoacheeTable({ coachees, companies }: CoacheeTableProps) {
         ))}
       </div>
 
+      {sorted.length === 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
+          <p className="text-gray-500 text-sm">
+            Aucun coachee ne correspond a ce filtre.
+          </p>
+          <button
+            onClick={() => setFilter("tous")}
+            className="mt-3 text-accent text-sm font-medium hover:underline"
+          >
+            Voir tous les coachees
+          </button>
+        </div>
+      )}
+
       <p className="text-xs text-gray-400 text-right">
         {sorted.length} coachee{sorted.length > 1 ? "s" : ""} affiche{sorted.length > 1 ? "s" : ""}
       </p>

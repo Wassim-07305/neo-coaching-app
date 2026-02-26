@@ -1,7 +1,8 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { Users, Clock, GripVertical, Edit, Trash2 } from "lucide-react";
+import { Users, Clock, GripVertical, Edit, Trash2, BookOpen } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import type { MockModule, ParcoursType } from "@/lib/mock-data";
 
 interface ModuleListProps {
@@ -16,6 +17,18 @@ const parcoursStyles: Record<ParcoursType, { label: string; className: string }>
 };
 
 export function ModuleList({ modules, onEdit }: ModuleListProps) {
+  if (modules.length === 0) {
+    return (
+      <EmptyState
+        icon={BookOpen}
+        title="Aucun module"
+        description="Creez votre premier module pour commencer a structurer vos parcours de coaching."
+        actionLabel="Creer un module"
+        onAction={() => onEdit({} as MockModule)}
+      />
+    );
+  }
+
   return (
     <div className="space-y-3">
       {/* Desktop table */}

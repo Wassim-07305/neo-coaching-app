@@ -19,9 +19,10 @@ export default function AdminCommunautePage() {
         </h1>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden h-[calc(100vh-160px)] flex">
+      {/* Desktop layout */}
+      <div className="hidden md:flex bg-white rounded-xl border border-gray-200 overflow-hidden h-[calc(100vh-160px)]">
         {/* Left panel - Group list */}
-        <div className="w-80 border-r border-gray-200 shrink-0 hidden md:block">
+        <div className="w-80 border-r border-gray-200 shrink-0">
           <GroupList
             groups={mockGroups}
             activeGroupId={activeGroupId}
@@ -46,7 +47,7 @@ export default function AdminCommunautePage() {
         </div>
       </div>
 
-      {/* Mobile: show group list if no active group */}
+      {/* Mobile layout: show group list OR chat */}
       <div className="md:hidden">
         {!activeGroup ? (
           <GroupList
