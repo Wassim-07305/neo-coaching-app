@@ -19,6 +19,7 @@ import {
   Menu,
   X,
 } from "lucide-react";
+import { NotificationBell } from "@/components/ui/notification-bell";
 
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/admin/dashboard" },
@@ -44,14 +45,17 @@ export function AdminSidebar() {
 
   const sidebarContent = (
     <div className="flex flex-col h-full">
-      {/* Logo */}
-      <div className="flex items-center gap-3 px-6 py-5 border-b border-white/10">
-        <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-success text-white font-heading font-bold text-sm">
-          NC
+      {/* Logo + Notification */}
+      <div className="flex items-center justify-between px-6 py-5 border-b border-white/10">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-success text-white font-heading font-bold text-sm">
+            NC
+          </div>
+          <span className="font-heading font-semibold text-accent text-lg">
+            Neo-Coaching
+          </span>
         </div>
-        <span className="font-heading font-semibold text-accent text-lg">
-          Neo-Coaching
-        </span>
+        <NotificationBell className="[&_button]:text-gray-300 [&_button:hover]:text-white [&_button:hover]:bg-white/10" />
       </div>
 
       {/* Navigation */}

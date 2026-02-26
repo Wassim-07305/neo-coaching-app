@@ -1,25 +1,14 @@
-import { BookOpen } from "lucide-react";
+"use client";
 
-export default async function CoachingModuleDetailPage({
+import { use } from "react";
+import { ModuleContent } from "@/components/modules/module-content";
+
+export default function CoachingModuleDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { id } = await params;
+  const { id } = use(params);
 
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <BookOpen className="w-6 h-6 text-accent" />
-        <h1 className="font-heading text-xl font-bold text-dark">
-          Detail Module
-        </h1>
-      </div>
-      <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
-        <p className="text-gray-500">
-          Le contenu du module ({id}) sera bientot disponible.
-        </p>
-      </div>
-    </div>
-  );
+  return <ModuleContent moduleId={id} basePath="/coaching" />;
 }

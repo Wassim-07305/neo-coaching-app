@@ -9,13 +9,13 @@ import {
   LayoutDashboard,
   FileText,
   MessageSquare,
-  Bell,
   LogOut,
   Menu,
   X,
   ChevronDown,
   User,
 } from "lucide-react";
+import { NotificationBell } from "@/components/ui/notification-bell";
 
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/dirigeant/dashboard" },
@@ -74,12 +74,7 @@ export function DirigeantNavbar() {
           {/* Right section */}
           <div className="flex items-center gap-2">
             {/* Notification bell */}
-            <button
-              className="relative p-2 text-gray-500 hover:text-dark hover:bg-gray-100 rounded-lg transition-colors"
-              aria-label="Notifications"
-            >
-              <Bell className="w-5 h-5" />
-            </button>
+            <NotificationBell />
 
             {/* User dropdown */}
             <div className="relative hidden md:block">
