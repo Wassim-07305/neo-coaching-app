@@ -1,4 +1,6 @@
 import type { Metadata, Viewport } from "next";
+import { AuthProvider } from "@/components/providers/auth-provider";
+import { ToastProvider } from "@/components/ui/toast";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -38,7 +40,11 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/icons/icon-192x192.svg" />
       </head>
       <body className="font-sans antialiased">
-        {children}
+        <AuthProvider>
+          <ToastProvider>
+            {children}
+          </ToastProvider>
+        </AuthProvider>
         <script
           dangerouslySetInnerHTML={{
             __html: `
