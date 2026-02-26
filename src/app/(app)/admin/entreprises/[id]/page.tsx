@@ -1,25 +1,29 @@
-import { Building2 } from "lucide-react";
+"use client";
 
-export default async function EntrepriseDetailPage({
+import { use } from "react";
+import { CompanyDetail } from "@/components/admin/company-detail";
+import { mockCompanies } from "@/lib/mock-data";
+
+// Replace with Supabase query when ready
+function getCompanyData(id: string) {
+  return mockCompanies.find((c) => c.id === id) || null;
+}
+
+export default function EntrepriseDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { id } = await params;
+  const { id } = use(params);
+  const company = getCompanyData(id);
 
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <Building2 className="w-6 h-6 text-accent" />
-        <h1 className="font-heading text-2xl font-bold text-dark">
-          Detail Entreprise
-        </h1>
+  if (!company) {
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+        <p className="text-gray-500">Entreprise introuvable.</p>
       </div>
-      <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
-        <p className="text-gray-500">
-          Les details de l&apos;entreprise ({id}) seront bientot disponibles.
-        </p>
-      </div>
-    </div>
-  );
+    );
+  }
+
+  return <CompanyDetail company={company} />;
 }
