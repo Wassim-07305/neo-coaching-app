@@ -7,8 +7,17 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Neo-Coaching | Jean-Claude YEKPE",
   description:
-    "Votre espace de coaching personnalise par Jean-Claude YEKPE",
+    "Votre espace de coaching personnalisé par Jean-Claude YEKPE",
   manifest: "/manifest.json",
+  icons: {
+    icon: [
+      { url: "/icons/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icons/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+    ],
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
@@ -38,7 +47,7 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Montserrat:wght@500;600;700;800&display=swap"
           rel="stylesheet"
         />
-        <link rel="apple-touch-icon" href="/icons/icon-192x192.svg" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
       </head>
       <body className="font-sans antialiased">
         <AuthProvider>
