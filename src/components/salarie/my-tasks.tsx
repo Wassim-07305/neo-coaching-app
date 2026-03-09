@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CheckCircle2, Circle, Clock, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/components/ui/toast";
 
 interface Task {
   id: string;
@@ -17,18 +18,25 @@ interface MyTasksProps {
 
 export function MyTasks({ initialTasks }: MyTasksProps) {
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  const { toast } = useToast();
 
-  const today = new Date("2026-02-26");
+  const today = new Date();
 
   function isOverdue(dueDate: string, completed: boolean): boolean {
     if (completed) return false;
     return new Date(dueDate) < today;
   }
 
-  function toggleComplete(taskId: string) {
+  function markAsComplete(taskId: string) {
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) return;
+
     setTasks((prev) =>
-      prev.map((t) => (t.id === taskId ? { ...t, completed: !t.completed } : t))
+      prev.map((t) => (t.id === taskId ? { ...t, completed: true } : t))
     );
+
+    // TODO: Update in Supabase tasks table
+    toast(`Bravo ! "${task.title}" marque comme termine.`, "success");
   }
 
   const pendingTasks = tasks.filter((t) => !t.completed);
@@ -71,8 +79,8 @@ export function MyTasks({ initialTasks }: MyTasksProps) {
                   </div>
                 </div>
                 <button
-                  onClick={() => toggleComplete(task.id)}
-                  className="px-3 py-1.5 text-xs font-semibold text-white bg-success rounded-lg hover:bg-success/90 transition-colors shrink-0"
+                  onClick={() => markAsComplete(task.id)}
+                  className="px-3 py-1.5 text-xs font-semibold text-white bg-success rounded-lg hover:bg-success/90 transition-colors shrink-0 whitespace-nowrap"
                 >
                   C&apos;est fait !
                 </button>

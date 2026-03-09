@@ -9,6 +9,7 @@ interface GroupListProps {
   activeGroupId: string | null;
   onSelectGroup: (groupId: string) => void;
   isAdmin?: boolean;
+  onCreateGroup?: () => void;
 }
 
 const groupIcons: Record<string, typeof Hash> = {
@@ -23,6 +24,7 @@ export function GroupList({
   activeGroupId,
   onSelectGroup,
   isAdmin = false,
+  onCreateGroup,
 }: GroupListProps) {
   return (
     <div className="flex flex-col h-full bg-white">
@@ -31,8 +33,11 @@ export function GroupList({
         <h2 className="font-heading text-lg font-bold text-dark">
           Mes Groupes
         </h2>
-        {isAdmin && (
-          <button className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-white rounded-lg text-xs font-medium hover:bg-accent/90 transition-colors">
+        {isAdmin && onCreateGroup && (
+          <button
+            onClick={onCreateGroup}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-white rounded-lg text-xs font-medium hover:bg-accent/90 transition-colors"
+          >
             <Plus className="w-3.5 h-3.5" />
             Creer
           </button>

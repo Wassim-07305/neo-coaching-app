@@ -1,14 +1,39 @@
 "use client";
 
 import { useState } from "react";
-import { mockGroups } from "@/lib/mock-data-community";
+import { mockGroups, type MockGroup } from "@/lib/mock-data-community";
 import { GroupList } from "@/components/community/group-list";
 import { ChatThread } from "@/components/community/chat-thread";
+import { CreateGroupModal } from "@/components/admin/create-group-modal";
 import { MessageSquare } from "lucide-react";
 
 export default function AdminCommunautePage() {
+  const [groups, setGroups] = useState<MockGroup[]>(mockGroups);
   const [activeGroupId, setActiveGroupId] = useState<string>("grp-general");
-  const activeGroup = mockGroups.find((g) => g.id === activeGroupId) || null;
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const activeGroup = groups.find((g) => g.id === activeGroupId) || null;
+
+  const handleGroupCreated = (newGroup: { name: string; type: string }) => {
+    // Map our type to MockGroup type
+    const typeMap: Record<string, MockGroup["type"]> = {
+      entreprise: "gpe",
+      coaching_individuel: "coaching",
+      general: "general",
+    };
+
+    const group: MockGroup = {
+      id: `grp-${Date.now()}`,
+      name: newGroup.name,
+      type: typeMap[newGroup.type] || "gpe",
+      memberCount: 1,
+      members: ["admin"],
+      lastMessage: "Groupe cree",
+      lastMessageTime: "A l'instant",
+      unreadCount: 0,
+    };
+    setGroups((prev) => [...prev, group]);
+    setActiveGroupId(group.id);
+  };
 
   return (
     <div className="space-y-4">
@@ -24,9 +49,10 @@ export default function AdminCommunautePage() {
         {/* Left panel - Group list */}
         <div className="w-80 border-r border-gray-200 shrink-0">
           <GroupList
-            groups={mockGroups}
+            groups={groups}
             activeGroupId={activeGroupId}
             onSelectGroup={setActiveGroupId}
+            onCreateGroup={() => setShowCreateModal(true)}
             isAdmin
           />
         </div>
@@ -51,9 +77,10 @@ export default function AdminCommunautePage() {
       <div className="md:hidden">
         {!activeGroup ? (
           <GroupList
-            groups={mockGroups}
+            groups={groups}
             activeGroupId={activeGroupId}
             onSelectGroup={setActiveGroupId}
+            onCreateGroup={() => setShowCreateModal(true)}
             isAdmin
           />
         ) : (
@@ -67,6 +94,14 @@ export default function AdminCommunautePage() {
           </div>
         )}
       </div>
+
+      {/* Create group modal */}
+      {showCreateModal && (
+        <CreateGroupModal
+          onClose={() => setShowCreateModal(false)}
+          onCreated={handleGroupCreated}
+        />
+      )}
     </div>
   );
 }
