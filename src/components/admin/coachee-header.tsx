@@ -15,6 +15,10 @@ import type { MockCoachee } from "@/lib/mock-data";
 
 interface CoacheeHeaderProps {
   coachee: MockCoachee;
+  onEditKpis?: () => void;
+  onAssignModule?: () => void;
+  onSendMessage?: () => void;
+  onGenerateReport?: () => void;
 }
 
 const statusStyles: Record<string, { label: string; className: string }> = {
@@ -27,7 +31,13 @@ function getInitials(first: string, last: string): string {
   return `${first[0] || ""}${last[0] || ""}`.toUpperCase();
 }
 
-export function CoacheeHeader({ coachee }: CoacheeHeaderProps) {
+export function CoacheeHeader({
+  coachee,
+  onEditKpis,
+  onAssignModule,
+  onSendMessage,
+  onGenerateReport,
+}: CoacheeHeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const status = statusStyles[coachee.status];
 
@@ -99,28 +109,40 @@ export function CoacheeHeader({ coachee }: CoacheeHeaderProps) {
               />
               <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-gray-200 rounded-lg shadow-lg py-1 w-52">
                 <button
-                  onClick={() => setMenuOpen(false)}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onEditKpis?.();
+                  }}
                   className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                 >
                   <Edit className="w-4 h-4" />
                   Modifier indicateurs
                 </button>
                 <button
-                  onClick={() => setMenuOpen(false)}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onAssignModule?.();
+                  }}
                   className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                 >
                   <BookOpen className="w-4 h-4" />
                   Attribuer module
                 </button>
                 <button
-                  onClick={() => setMenuOpen(false)}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onSendMessage?.();
+                  }}
                   className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                 >
                   <MessageSquare className="w-4 h-4" />
                   Envoyer message
                 </button>
                 <button
-                  onClick={() => setMenuOpen(false)}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onGenerateReport?.();
+                  }}
                   className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                 >
                   <FileText className="w-4 h-4" />

@@ -13,7 +13,7 @@ type SortDir = "asc" | "desc";
 
 interface CoacheeTableProps {
   coachees: MockCoachee[];
-  companies: string[];
+  companies?: string[];
 }
 
 function getInitials(first: string, last: string): string {
@@ -26,7 +26,9 @@ const statusColors: Record<string, string> = {
   archive: "bg-gray-100 text-gray-400",
 };
 
-export function CoacheeTable({ coachees, companies }: CoacheeTableProps) {
+export function CoacheeTable({ coachees, companies: companiesProp }: CoacheeTableProps) {
+  // Extract unique companies from coachees if not provided
+  const companies = companiesProp || [...new Set(coachees.filter(c => c.company_name).map(c => c.company_name!))];
   const [filter, setFilter] = useState<string>("tous");
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortDir, setSortDir] = useState<SortDir>("asc");

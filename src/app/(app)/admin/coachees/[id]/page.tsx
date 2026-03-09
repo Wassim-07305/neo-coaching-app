@@ -1,6 +1,6 @@
 "use client";
 
-import { use } from "react";
+import { use, useState } from "react";
 import { Award, Download } from "lucide-react";
 import { CoacheeHeader } from "@/components/admin/coachee-header";
 import { KpiGauge } from "@/components/ui/kpi-gauge";
@@ -9,7 +9,11 @@ import { ModuleTimeline } from "@/components/admin/module-timeline";
 import { LivrablesList } from "@/components/admin/livrables-list";
 import { CallHistory } from "@/components/admin/call-history";
 import { SatisfactionChart } from "@/components/admin/satisfaction-chart";
+import { KpiScoringModal } from "@/components/admin/kpi-scoring-modal";
+import { AssignModuleModal } from "@/components/admin/assign-module-modal";
+import { SendMessageModal } from "@/components/admin/send-message-modal";
 import { mockCoachees } from "@/lib/mock-data";
+import { useToast } from "@/components/ui/toast";
 
 // Replace with Supabase query when ready
 function getCoacheeData(id: string) {
@@ -23,6 +27,21 @@ export default function CoacheeDetailPage({
 }) {
   const { id } = use(params);
   const coachee = getCoacheeData(id);
+  const { toast } = useToast();
+
+  const [showKpiModal, setShowKpiModal] = useState(false);
+  const [showAssignModule, setShowAssignModule] = useState(false);
+  const [showSendMessage, setShowSendMessage] = useState(false);
+  const [kpis, setKpis] = useState(coachee?.kpis || { investissement: 0, efficacite: 0, participation: 0 });
+
+  const handleGenerateReport = () => {
+    // TODO: Generate PDF with @react-pdf/renderer
+    toast("Generation du rapport PDF en cours...", "info");
+    // Simulate generation
+    setTimeout(() => {
+      toast("Rapport genere avec succes !", "success");
+    }, 1500);
+  };
 
   if (!coachee) {
     return (
@@ -35,26 +54,40 @@ export default function CoacheeDetailPage({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <CoacheeHeader coachee={coachee} />
+      <CoacheeHeader
+        coachee={coachee}
+        onEditKpis={() => setShowKpiModal(true)}
+        onAssignModule={() => setShowAssignModule(true)}
+        onSendMessage={() => setShowSendMessage(true)}
+        onGenerateReport={handleGenerateReport}
+      />
 
       {/* KPI Gauges */}
       <div className="bg-white rounded-xl border border-gray-200 p-5">
-        <h3 className="font-heading font-semibold text-sm text-dark mb-4">
-          Indicateurs actuels
-        </h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-heading font-semibold text-sm text-dark">
+            Indicateurs actuels
+          </h3>
+          <button
+            onClick={() => setShowKpiModal(true)}
+            className="text-xs text-accent hover:text-accent/80 font-medium transition-colors"
+          >
+            Modifier
+          </button>
+        </div>
         <div className="flex items-center justify-center gap-6 md:gap-12">
           <KpiGauge
-            value={coachee.kpis.investissement}
+            value={kpis.investissement}
             label="Investissement"
             size="lg"
           />
           <KpiGauge
-            value={coachee.kpis.efficacite}
+            value={kpis.efficacite}
             label="Efficacite"
             size="lg"
           />
           <KpiGauge
-            value={coachee.kpis.participation}
+            value={kpis.participation}
             label="Participation"
             size="lg"
           />
@@ -111,6 +144,40 @@ export default function CoacheeDetailPage({
           </div>
         )}
       </div>
+
+      {/* Modals */}
+      {showKpiModal && (
+        <KpiScoringModal
+          coacheeId={coachee.id}
+          coacheeName={`${coachee.first_name} ${coachee.last_name}`}
+          currentKpis={kpis}
+          onClose={() => setShowKpiModal(false)}
+          onSave={(newKpis) => {
+            setKpis({
+              investissement: newKpis.investissement,
+              efficacite: newKpis.efficacite,
+              participation: newKpis.participation,
+            });
+          }}
+        />
+      )}
+
+      {showAssignModule && (
+        <AssignModuleModal
+          coacheeId={coachee.id}
+          coacheeName={`${coachee.first_name} ${coachee.last_name}`}
+          currentModules={coachee.module_progress.map((m) => m.module_id)}
+          onClose={() => setShowAssignModule(false)}
+        />
+      )}
+
+      {showSendMessage && (
+        <SendMessageModal
+          recipientId={coachee.id}
+          recipientName={`${coachee.first_name} ${coachee.last_name}`}
+          onClose={() => setShowSendMessage(false)}
+        />
+      )}
     </div>
   );
 }
