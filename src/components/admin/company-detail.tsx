@@ -1,10 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, FileText, Mail } from "lucide-react";
+import { ArrowLeft, FileText, Mail, UserPlus } from "lucide-react";
 import { KpiGauge } from "@/components/ui/kpi-gauge";
 import { KpiDotGroup } from "@/components/ui/kpi-badge";
+import { InviteEmployeeModal } from "@/components/admin/invite-employee-modal";
 import {
   getCompanyAverageKpis,
   mockCoachees,
@@ -27,6 +29,7 @@ function getInitials(first: string, last: string): string {
 }
 
 export function CompanyDetail({ company }: CompanyDetailProps) {
+  const [showInviteModal, setShowInviteModal] = useState(false);
   const kpis = getCompanyAverageKpis(company.id);
   const employees = mockCoachees.filter((c) => c.company_id === company.id);
   const status = missionStatusStyles[company.mission_status];
@@ -128,9 +131,18 @@ export function CompanyDetail({ company }: CompanyDetailProps) {
 
       {/* Employee list */}
       <div className="bg-white rounded-xl border border-gray-200 p-5">
-        <h3 className="font-heading font-semibold text-sm text-dark mb-4">
-          Collaborateurs ({employees.length})
-        </h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-heading font-semibold text-sm text-dark">
+            Collaborateurs ({employees.length})
+          </h3>
+          <button
+            onClick={() => setShowInviteModal(true)}
+            className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-accent border border-accent/30 rounded-lg hover:bg-accent/5 transition-colors"
+          >
+            <UserPlus className="w-3.5 h-3.5" />
+            Inviter
+          </button>
+        </div>
 
         {/* Desktop table */}
         <div className="hidden md:block overflow-x-auto">
@@ -206,7 +218,36 @@ export function CompanyDetail({ company }: CompanyDetailProps) {
             </Link>
           ))}
         </div>
+
+        {/* Empty state for no employees */}
+        {employees.length === 0 && (
+          <div className="text-center py-8">
+            <p className="text-gray-500 text-sm mb-3">
+              Aucun collaborateur pour cette entreprise.
+            </p>
+            <button
+              onClick={() => setShowInviteModal(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-accent text-white rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors"
+            >
+              <UserPlus className="w-4 h-4" />
+              Inviter des salaries
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* Invite employee modal */}
+      {showInviteModal && (
+        <InviteEmployeeModal
+          companyId={company.id}
+          companyName={company.name}
+          onClose={() => setShowInviteModal(false)}
+          onInvited={(employees) => {
+            // TODO: Refresh employee list from Supabase
+            console.log("Invited:", employees);
+          }}
+        />
+      )}
     </div>
   );
 }
