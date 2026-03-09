@@ -25,7 +25,7 @@ const dashboardMap: Record<string, string> = {
   dirigeant: "/dirigeant/dashboard",
   salarie: "/salarie/dashboard",
   coachee: "/coaching/dashboard",
-  intervenant: "/intervenants",
+  intervenant: "/intervenant/dashboard",
 };
 
 export default function ConnexionPage() {

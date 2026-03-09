@@ -30,10 +30,9 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   // Public routes that don't require auth
-  const publicPaths = ["/", "/connexion", "/reserver", "/intervenants"];
-  const isPublicPath = publicPaths.some(
-    (path) => request.nextUrl.pathname === path || request.nextUrl.pathname.startsWith("/intervenants")
-  );
+  const publicPaths = ["/", "/connexion", "/reserver", "/reset-password"];
+  const isPublicPath = publicPaths.some((path) => request.nextUrl.pathname === path) ||
+    request.nextUrl.pathname.startsWith("/intervenants"); // Public expert directory
 
   if (!user && !isPublicPath) {
     const url = request.nextUrl.clone();
@@ -53,7 +52,7 @@ export async function updateSession(request: NextRequest) {
       dirigeant: "/dirigeant/dashboard",
       salarie: "/salarie/dashboard",
       coachee: "/coaching/dashboard",
-      intervenant: "/intervenants",
+      intervenant: "/intervenant/dashboard",
     };
 
     const url = request.nextUrl.clone();
