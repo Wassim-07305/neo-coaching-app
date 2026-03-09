@@ -30,7 +30,7 @@ interface CalendarAppointment {
   time: string;
   client_name: string;
   type: string;
-  zoom_link: string;
+  zoom_link: string | null;
 }
 
 interface CalendarViewProps {
@@ -221,7 +221,7 @@ export function CalendarView({ appointments }: CalendarViewProps) {
                       {typeConfig[apt.type]?.label || apt.type}
                     </span>
                     <a
-                      href={apt.zoom_link}
+                      href={apt.zoom_link || "#"}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="rounded-lg bg-blue-50 p-1.5 text-blue-600 hover:bg-blue-100"

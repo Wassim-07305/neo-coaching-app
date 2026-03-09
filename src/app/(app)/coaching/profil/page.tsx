@@ -21,6 +21,8 @@ import {
 import { cn } from "@/lib/utils";
 import { KpiGauge } from "@/components/ui/kpi-gauge";
 import { BadgesGrid } from "@/components/ui/badges-grid";
+import { ChangePasswordModal } from "@/components/ui/change-password-modal";
+import { useAuth } from "@/components/providers/auth-provider";
 
 // ---------- Mock user data (Isabelle Fontaine - individuel) ----------
 const mockUser = {
@@ -79,6 +81,8 @@ export default function CoachingProfilPage() {
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState<GeneratingState>({});
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const { signOut } = useAuth();
 
   function handleSave() {
     setSaving(true);
@@ -467,16 +471,28 @@ export default function CoachingProfilPage() {
           Mon compte
         </h3>
         <div className="flex flex-col sm:flex-row gap-3">
-          <button className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-gray-200 text-sm font-medium text-dark hover:bg-gray-50 transition-colors">
+          <button
+            onClick={() => setShowPasswordModal(true)}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-gray-200 text-sm font-medium text-dark hover:bg-gray-50 transition-colors"
+          >
             <Lock className="w-4 h-4 text-gray-500" />
             Changer le mot de passe
           </button>
-          <button className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-danger/20 text-sm font-medium text-danger hover:bg-danger/5 transition-colors">
+          <button
+            onClick={signOut}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-danger/20 text-sm font-medium text-danger hover:bg-danger/5 transition-colors"
+          >
             <LogOut className="w-4 h-4" />
             Se deconnecter
           </button>
         </div>
       </div>
+
+      {/* Password change modal */}
+      <ChangePasswordModal
+        isOpen={showPasswordModal}
+        onClose={() => setShowPasswordModal(false)}
+      />
 
       {/* Save button */}
       <div className="flex justify-end">

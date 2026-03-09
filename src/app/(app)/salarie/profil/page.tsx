@@ -21,6 +21,7 @@ import { useAuth } from "@/components/providers/auth-provider";
 import { useLatestKpi } from "@/lib/supabase/hooks";
 import { updateProfile } from "@/lib/supabase/queries";
 import { useToast } from "@/components/ui/toast";
+import { ChangePasswordModal } from "@/components/ui/change-password-modal";
 
 // ---------- Fallback mock data ----------
 const mockFallback = {
@@ -43,6 +44,7 @@ export default function SalarieProfilPage() {
   const [phone, setPhone] = useState(profile?.phone || "");
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
 
   const email = profile?.email || "";
   const kpis = latestKpi
@@ -298,7 +300,10 @@ export default function SalarieProfilPage() {
           Mon compte
         </h3>
         <div className="flex flex-col sm:flex-row gap-3">
-          <button className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-gray-200 text-sm font-medium text-dark hover:bg-gray-50 transition-colors">
+          <button
+            onClick={() => setShowPasswordModal(true)}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-gray-200 text-sm font-medium text-dark hover:bg-gray-50 transition-colors"
+          >
             <Lock className="w-4 h-4 text-gray-500" />
             Changer le mot de passe
           </button>
@@ -311,6 +316,12 @@ export default function SalarieProfilPage() {
           </button>
         </div>
       </div>
+
+      {/* Password change modal */}
+      <ChangePasswordModal
+        isOpen={showPasswordModal}
+        onClose={() => setShowPasswordModal(false)}
+      />
 
       {/* Save button */}
       <div className="flex justify-end">

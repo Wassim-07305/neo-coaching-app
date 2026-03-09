@@ -11,10 +11,37 @@ import {
   UserX,
 } from "lucide-react";
 import { CoacheeTable } from "@/components/admin/coachee-table";
+import { useCoachees } from "@/lib/supabase/hooks";
 import { mockCoachees } from "@/lib/mock-data";
+import type { MockCoachee } from "@/lib/mock-data";
 
-function getCoacheesData() {
-  const coachees = mockCoachees;
+function adaptCoachee(p: Record<string, unknown>): MockCoachee {
+  const companies = p.companies as { name: string } | null;
+  return {
+    id: p.id as string,
+    first_name: (p.first_name as string) || "",
+    last_name: (p.last_name as string) || "",
+    email: (p.email as string) || "",
+    avatar_url: (p.avatar_url as string) || null,
+    type: p.company_id ? "entreprise" : "individuel",
+    company_id: (p.company_id as string) || null,
+    company_name: companies?.name || null,
+    status: ((p.status as string) === "active" ? "actif" : "inactif") as MockCoachee["status"],
+    start_date: (p.created_at as string) || "",
+    current_module: null,
+    kpis: { investissement: 5, efficacite: 5, participation: 5 },
+    kpi_history: [],
+    module_progress: [],
+    livrables: [],
+    calls: [],
+    certificates: [],
+    last_activity: (p.updated_at as string) || (p.created_at as string) || "",
+  };
+}
+
+function useCoacheesData() {
+  const { data: supaCoachees, loading } = useCoachees();
+  const coachees = supaCoachees ? supaCoachees.map(adaptCoachee) : mockCoachees;
   const companyNames = [
     ...new Set(
       coachees.filter((c) => c.company_name).map((c) => c.company_name as string)
@@ -40,11 +67,11 @@ function getCoacheesData() {
         ).toFixed(1)
       : "0";
 
-  return { coachees, companyNames, actifs, inactifs, alertes, avgKpi };
+  return { coachees, companyNames, actifs, inactifs, alertes, avgKpi, loading };
 }
 
 export default function CoacheesPage() {
-  const data = getCoacheesData();
+  const data = useCoacheesData();
   const [search, setSearch] = useState("");
 
   const filteredCoachees = useMemo(() => {

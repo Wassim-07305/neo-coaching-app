@@ -7,24 +7,30 @@ import { LeadsTable } from "@/components/admin/leads-table";
 import { UpcomingAppointments } from "@/components/admin/upcoming-appointments";
 import { CalendarView } from "@/components/admin/calendar-view";
 import { cn } from "@/lib/utils";
+import { useUpcomingAppointments, useBookingSubmissions } from "@/lib/supabase/hooks";
+import { adaptAppointment } from "@/lib/supabase/adapters";
+import type { MockAppointment } from "@/lib/mock-data";
 import {
   mockFunnelData,
   mockBookingSubmissions,
   mockAppointments,
 } from "@/lib/mock-data";
 
-function getBookingData() {
-  return {
-    funnel: mockFunnelData,
-    leads: mockBookingSubmissions,
-    appointments: mockAppointments,
-  };
-}
-
 type Tab = "calendrier" | "pipeline";
 
 export default function RdvPage() {
-  const data = getBookingData();
+  const { data: supaAppointments } = useUpcomingAppointments();
+  const { data: supaSubmissions } = useBookingSubmissions();
+
+  const appointments = supaAppointments
+    ? supaAppointments.map((a) => adaptAppointment(a as Parameters<typeof adaptAppointment>[0])) as unknown as MockAppointment[]
+    : mockAppointments;
+  const leads = supaSubmissions || mockBookingSubmissions;
+  const data = {
+    funnel: mockFunnelData,
+    leads,
+    appointments,
+  };
   const [activeTab, setActiveTab] = useState<Tab>("calendrier");
 
   return (

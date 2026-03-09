@@ -48,24 +48,56 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (user && request.nextUrl.pathname === "/connexion") {
+  // Role-based routing
+  const dashboardMap: Record<string, string> = {
+    admin: "/admin/dashboard",
+    dirigeant: "/dirigeant/dashboard",
+    salarie: "/salarie/dashboard",
+    coachee: "/coaching/dashboard",
+    intervenant: "/intervenants",
+  };
+
+  // Role → allowed route prefixes
+  const roleRoutes: Record<string, string[]> = {
+    admin: ["/admin", "/notifications", "/onboarding"],
+    dirigeant: ["/dirigeant", "/notifications", "/onboarding"],
+    salarie: ["/salarie", "/notifications", "/onboarding"],
+    coachee: ["/coaching", "/notifications", "/onboarding"],
+    intervenant: ["/intervenants"],
+  };
+
+  if (user) {
     const { data: profile } = await supabase
       .from("profiles")
       .select("role")
       .eq("id", user.id)
       .single();
 
-    const dashboardMap: Record<string, string> = {
-      admin: "/admin/dashboard",
-      dirigeant: "/dirigeant/dashboard",
-      salarie: "/salarie/dashboard",
-      coachee: "/coaching/dashboard",
-      intervenant: "/intervenants",
-    };
+    const role = profile?.role || "coachee";
 
-    const url = request.nextUrl.clone();
-    url.pathname = dashboardMap[profile?.role || "coachee"] || "/";
-    return NextResponse.redirect(url);
+    // Redirect from /connexion to dashboard
+    if (request.nextUrl.pathname === "/connexion") {
+      const url = request.nextUrl.clone();
+      url.pathname = dashboardMap[role] || "/";
+      return NextResponse.redirect(url);
+    }
+
+    // Block access to routes not allowed for this role
+    const pathname = request.nextUrl.pathname;
+    const allowedPrefixes = roleRoutes[role] || ["/coaching"];
+    const isAppRoute = pathname.startsWith("/admin") ||
+      pathname.startsWith("/dirigeant") ||
+      pathname.startsWith("/salarie") ||
+      pathname.startsWith("/coaching");
+
+    if (isAppRoute) {
+      const hasAccess = allowedPrefixes.some((prefix) => pathname.startsWith(prefix));
+      if (!hasAccess) {
+        const url = request.nextUrl.clone();
+        url.pathname = dashboardMap[role] || "/";
+        return NextResponse.redirect(url);
+      }
+    }
   }
 
   return supabaseResponse;

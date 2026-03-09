@@ -4,15 +4,15 @@ import { useState } from "react";
 import { Building2, Plus, Upload } from "lucide-react";
 import { CompanyList } from "@/components/admin/company-list";
 import { CsvImport } from "@/components/admin/csv-import";
+import { useCompanies } from "@/lib/supabase/hooks";
+import { adaptCompany } from "@/lib/supabase/adapters";
 import { mockCompanies } from "@/lib/mock-data";
 
-// Replace with Supabase query when ready
-function getCompaniesData() {
-  return mockCompanies;
-}
-
 export default function EntreprisesPage() {
-  const companies = getCompaniesData();
+  const { data: supaCompanies } = useCompanies();
+  const companies = supaCompanies
+    ? supaCompanies.map((c) => adaptCompany(c as Parameters<typeof adaptCompany>[0]))
+    : mockCompanies;
   const [showImport, setShowImport] = useState(false);
 
   return (
