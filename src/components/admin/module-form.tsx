@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { MockModule, ParcoursType } from "@/lib/mock-data";
@@ -22,8 +22,20 @@ interface FormData {
   duration_weeks: number;
 }
 
-export function ModuleForm({ module, isOpen, onClose }: ModuleFormProps) {
-  const [form, setForm] = useState<FormData>({
+function getInitialForm(module?: MockModule | null): FormData {
+  if (module) {
+    return {
+      title: module.title,
+      description: module.description,
+      content_summary: module.content_summary,
+      exercise_json: module.exercise_json,
+      order_index: module.order_index,
+      parcours_type: module.parcours_type,
+      price: module.price,
+      duration_weeks: module.duration_weeks,
+    };
+  }
+  return {
     title: "",
     description: "",
     content_summary: "",
@@ -32,33 +44,21 @@ export function ModuleForm({ module, isOpen, onClose }: ModuleFormProps) {
     parcours_type: "les_deux",
     price: 490,
     duration_weeks: 4,
-  });
+  };
+}
 
-  useEffect(() => {
-    if (module) {
-      setForm({
-        title: module.title,
-        description: module.description,
-        content_summary: module.content_summary,
-        exercise_json: module.exercise_json,
-        order_index: module.order_index,
-        parcours_type: module.parcours_type,
-        price: module.price,
-        duration_weeks: module.duration_weeks,
-      });
-    } else {
-      setForm({
-        title: "",
-        description: "",
-        content_summary: "",
-        exercise_json: "",
-        order_index: 1,
-        parcours_type: "les_deux",
-        price: 490,
-        duration_weeks: 4,
-      });
-    }
-  }, [module]);
+export function ModuleForm({ module, isOpen, onClose }: ModuleFormProps) {
+  // Use module?.id as key to reset form when module changes
+  const initialForm = useMemo(() => getInitialForm(module), [module]);
+  const [form, setForm] = useState<FormData>(initialForm);
+
+  // Reset form when module changes
+  const moduleId = module?.id ?? null;
+  const [prevModuleId, setPrevModuleId] = useState<string | null>(moduleId);
+  if (moduleId !== prevModuleId) {
+    setPrevModuleId(moduleId);
+    setForm(getInitialForm(module));
+  }
 
   if (!isOpen) return null;
 

@@ -314,7 +314,7 @@ export default function QuestionnairesPage() {
             setShowConfigModal(false);
             setSelectedQuestionnaire(null);
           }}
-          onSave={(url) => {
+          onSave={() => {
             toast("Lien Google Forms enregistre", "success");
             setShowConfigModal(false);
             setSelectedQuestionnaire(null);

@@ -2,7 +2,6 @@
 
 import { KpiGauge } from "@/components/ui/kpi-gauge";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 interface AggregatedKpisProps {
   investissement: number;

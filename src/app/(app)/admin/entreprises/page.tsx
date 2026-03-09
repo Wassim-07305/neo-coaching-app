@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Building2, Plus, Users, TrendingUp, CheckCircle, Clock } from "lucide-react";
+import { Building2, Plus, Users, TrendingUp, CheckCircle } from "lucide-react";
 import { CompanyList } from "@/components/admin/company-list";
 import { CreateCompanyModal } from "@/components/admin/create-company-modal";
 import { mockCompanies } from "@/lib/mock-data";

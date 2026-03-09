@@ -35,9 +35,9 @@ export async function POST(request: NextRequest) {
       .eq("id", moduleId)
       .single();
 
-    const module = moduleData as { id: string; title: string; description: string | null; price_cents: number } | null;
+    const moduleInfo = moduleData as { id: string; title: string; description: string | null; price_cents: number } | null;
 
-    if (moduleError || !module) {
+    if (moduleError || !moduleInfo) {
       return NextResponse.json({ error: "Module non trouve" }, { status: 404 });
     }
 
@@ -61,11 +61,11 @@ export async function POST(request: NextRequest) {
           price_data: {
             currency: "eur",
             product_data: {
-              name: module.title,
-              description: module.description || `Module de formation Neo-Coaching`,
+              name: moduleInfo.title,
+              description: moduleInfo.description || `Module de formation Neo-Coaching`,
               images: [], // Add module image if available
             },
-            unit_amount: module.price_cents,
+            unit_amount: moduleInfo.price_cents,
           },
           quantity: 1,
         },

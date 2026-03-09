@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import {
   type MockMessage,
@@ -34,13 +34,18 @@ export function ChatThread({
   isAdmin = false,
   currentUserId = "coach-1",
 }: ChatThreadProps) {
-  const [messages, setMessages] = useState<MockMessage[]>([]);
+  // Get initial messages based on group.id
+  const initialMessages = useMemo(() => getMessagesForGroup(group.id), [group.id]);
+  const [messages, setMessages] = useState<MockMessage[]>(initialMessages);
   const [pinnedOpen, setPinnedOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  // Reset messages when group changes
+  const [prevGroupId, setPrevGroupId] = useState(group.id);
+  if (group.id !== prevGroupId) {
+    setPrevGroupId(group.id);
     setMessages(getMessagesForGroup(group.id));
-  }, [group.id]);
+  }
 
   useEffect(() => {
     // Scroll to bottom

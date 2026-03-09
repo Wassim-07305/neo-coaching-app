@@ -254,7 +254,7 @@ export function ExpertDetail({ expert }: ExpertDetailProps) {
           </p>
         ) : (
           <p className="text-sm text-warning mb-4">
-            Veuillez d'abord choisir une formule ci-dessus.
+            Veuillez d&apos;abord choisir une formule ci-dessus.
           </p>
         )}
 

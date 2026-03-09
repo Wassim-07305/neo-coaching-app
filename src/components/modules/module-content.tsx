@@ -167,7 +167,6 @@ export function ModuleContent({ moduleId, basePath }: ModuleContentProps) {
       <QualiopiQuestionnaires
         moduleId={moduleId}
         basePath={basePath}
-        moduleStarted={true}
         moduleCompleted={moduleCompleted}
       />
 

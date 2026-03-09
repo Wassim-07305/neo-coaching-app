@@ -5,7 +5,6 @@ import { format, addWeeks } from "date-fns";
 import {
   X,
   Route,
-  User,
   Calendar,
   ChevronRight,
   Check,
@@ -320,7 +319,7 @@ export function AssignParcoursModal({
                 <div className="flex items-center gap-2 mb-3">
                   <Check className="w-5 h-5 text-success" />
                   <span className="font-medium text-dark">
-                    Recapitulatif de l'assignation
+                    Recapitulatif de l&apos;assignation
                   </span>
                 </div>
 

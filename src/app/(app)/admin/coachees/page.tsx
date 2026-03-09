@@ -1,22 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import {
   Users,
   Plus,
   Search,
   Filter,
-  ChevronRight,
   Building2,
   User,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { KpiBadge } from "@/components/ui/kpi-badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CoacheeTable } from "@/components/admin/coachee-table";
 import { CreateCoacheeModal } from "@/components/admin/create-coachee-modal";
-import { mockCoachees, type MockCoachee } from "@/lib/mock-data";
+import { mockCoachees } from "@/lib/mock-data";
 
 type FilterType = "all" | "individuel" | "entreprise";
 type StatusFilter = "all" | "actif" | "inactif" | "archive";

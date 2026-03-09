@@ -276,7 +276,7 @@ export default function IntervenantDashboardPage() {
               href="/intervenant/reservations"
               className="block text-center text-sm text-accent hover:text-accent/80 mt-4 pt-3 border-t border-gray-100"
             >
-              Voir tout l'historique
+              Voir tout l&apos;historique
             </Link>
           </div>
         </div>

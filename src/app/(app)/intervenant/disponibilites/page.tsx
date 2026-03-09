@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { Clock, Plus, Save, Trash2, Check } from "lucide-react";
 import {
   getIntervenantDisponibilites,
@@ -15,6 +15,7 @@ export default function IntervenantDisponibilitesPage() {
   const initialDispos = getIntervenantDisponibilites();
   const [disponibilites, setDisponibilites] = useState<IntervenantDisponibilite[]>(initialDispos);
   const [hasChanges, setHasChanges] = useState(false);
+  const idCounterRef = useRef(0);
 
   // Group by day
   const groupedByDay = disponibilites.reduce(
@@ -47,9 +48,10 @@ export default function IntervenantDisponibilitesPage() {
     setHasChanges(true);
   };
 
-  const handleAddSlot = (dayOfWeek: number) => {
+  const handleAddSlot = useCallback((dayOfWeek: number) => {
+    idCounterRef.current += 1;
     const newSlot: IntervenantDisponibilite = {
-      id: `new-${Date.now()}`,
+      id: `new-${idCounterRef.current}`,
       day_of_week: dayOfWeek,
       start_time: "09:00",
       end_time: "12:00",
@@ -57,7 +59,7 @@ export default function IntervenantDisponibilitesPage() {
     };
     setDisponibilites((prev) => [...prev, newSlot]);
     setHasChanges(true);
-  };
+  }, []);
 
   const handleSave = () => {
     // TODO: Save to Supabase

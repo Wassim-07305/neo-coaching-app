@@ -26,12 +26,33 @@ const statusColors: Record<string, string> = {
   archive: "bg-gray-100 text-gray-400",
 };
 
+// Sort icon component moved outside of render
+function SortIcon({
+  field,
+  currentField,
+  currentDir,
+}: {
+  field: SortField;
+  currentField: SortField;
+  currentDir: SortDir;
+}) {
+  if (currentField !== field) return <ChevronUp className="w-3 h-3 text-gray-300" />;
+  return currentDir === "asc" ? (
+    <ChevronUp className="w-3 h-3 text-accent" />
+  ) : (
+    <ChevronDown className="w-3 h-3 text-accent" />
+  );
+}
+
 export function CoacheeTable({ coachees, companies: companiesProp }: CoacheeTableProps) {
-  // Extract unique companies from coachees if not provided
-  const companies = companiesProp || [...new Set(coachees.filter(c => c.company_name).map(c => c.company_name!))];
   const [filter, setFilter] = useState<string>("tous");
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
+
+  // Extract unique companies from coachees if not provided
+  const companies = useMemo(() => {
+    return companiesProp || [...new Set(coachees.filter(c => c.company_name).map(c => c.company_name!))];
+  }, [companiesProp, coachees]);
 
   const filters = useMemo(() => {
     const items = [
@@ -86,15 +107,6 @@ export function CoacheeTable({ coachees, companies: companiesProp }: CoacheeTabl
       setSortField(field);
       setSortDir("asc");
     }
-  }
-
-  function SortIcon({ field }: { field: SortField }) {
-    if (sortField !== field) return <ChevronUp className="w-3 h-3 text-gray-300" />;
-    return sortDir === "asc" ? (
-      <ChevronUp className="w-3 h-3 text-accent" />
-    ) : (
-      <ChevronDown className="w-3 h-3 text-accent" />
-    );
   }
 
   if (coachees.length === 0) {
@@ -154,7 +166,7 @@ export function CoacheeTable({ coachees, companies: companiesProp }: CoacheeTabl
                   onClick={() => toggleSort("name")}
                 >
                   <span className="flex items-center gap-1">
-                    Nom <SortIcon field="name" />
+                    Nom <SortIcon field="name" currentField={sortField} currentDir={sortDir} />
                   </span>
                 </th>
                 <th
@@ -162,7 +174,7 @@ export function CoacheeTable({ coachees, companies: companiesProp }: CoacheeTabl
                   onClick={() => toggleSort("type")}
                 >
                   <span className="flex items-center gap-1">
-                    Type <SortIcon field="type" />
+                    Type <SortIcon field="type" currentField={sortField} currentDir={sortDir} />
                   </span>
                 </th>
                 <th
@@ -170,7 +182,7 @@ export function CoacheeTable({ coachees, companies: companiesProp }: CoacheeTabl
                   onClick={() => toggleSort("company")}
                 >
                   <span className="flex items-center gap-1">
-                    Entreprise <SortIcon field="company" />
+                    Entreprise <SortIcon field="company" currentField={sortField} currentDir={sortDir} />
                   </span>
                 </th>
                 <th
@@ -178,7 +190,7 @@ export function CoacheeTable({ coachees, companies: companiesProp }: CoacheeTabl
                   onClick={() => toggleSort("module")}
                 >
                   <span className="flex items-center gap-1">
-                    Module en cours <SortIcon field="module" />
+                    Module en cours <SortIcon field="module" currentField={sortField} currentDir={sortDir} />
                   </span>
                 </th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
@@ -189,7 +201,7 @@ export function CoacheeTable({ coachees, companies: companiesProp }: CoacheeTabl
                   onClick={() => toggleSort("last_activity")}
                 >
                   <span className="flex items-center gap-1">
-                    Derniere activite <SortIcon field="last_activity" />
+                    Derniere activite <SortIcon field="last_activity" currentField={sortField} currentDir={sortDir} />
                   </span>
                 </th>
               </tr>

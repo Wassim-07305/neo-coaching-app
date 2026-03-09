@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import {
@@ -18,7 +17,6 @@ import {
 interface QualiopiQuestionnairesProps {
   moduleId: string;
   basePath: string; // "/salarie" or "/coaching"
-  moduleStarted?: boolean;
   moduleCompleted?: boolean;
 }
 
@@ -34,7 +32,6 @@ const mockUserQuestionnaireStatus: Record<
 export function QualiopiQuestionnaires({
   moduleId,
   basePath,
-  moduleStarted = true,
   moduleCompleted = false,
 }: QualiopiQuestionnairesProps) {
   const moduleQuestionnaires = getModuleQuestionnaires(moduleId);

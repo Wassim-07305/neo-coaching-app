@@ -104,7 +104,7 @@ export default function ResetPasswordPage() {
               Lien invalide ou expire
             </h1>
             <p className="text-gray-500 text-sm mb-6">
-              Ce lien de reinitialisation n'est plus valide. Veuillez demander
+              Ce lien de reinitialisation n&apos;est plus valide. Veuillez demander
               un nouveau lien depuis la page de connexion.
             </p>
             <Link

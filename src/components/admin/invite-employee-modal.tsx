@@ -233,7 +233,7 @@ export function InviteEmployeeModal({
           <div>
             <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
               <Users className="w-4 h-4" />
-              Lien d'invitation partage
+              Lien d&apos;invitation partage
             </h3>
 
             {!inviteLink ? (
@@ -241,12 +241,12 @@ export function InviteEmployeeModal({
                 onClick={generateInviteLink}
                 className="w-full px-4 py-3 border-2 border-dashed border-gray-200 rounded-xl text-sm text-gray-500 hover:border-accent/50 hover:text-accent transition-colors"
               >
-                Generer un lien d'invitation
+                Generer un lien d&apos;invitation
               </button>
             ) : (
               <div className="bg-gray-50 rounded-xl p-4">
                 <p className="text-xs text-gray-500 mb-2">
-                  Partagez ce lien avec les salaries de l'entreprise :
+                  Partagez ce lien avec les salaries de l&apos;entreprise :
                 </p>
                 <div className="flex gap-2">
                   <input

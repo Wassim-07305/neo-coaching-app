@@ -6,7 +6,6 @@ import {
   Mail,
   Phone,
   Building2,
-  Calendar,
   Camera,
   Lock,
   LogOut,

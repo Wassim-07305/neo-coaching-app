@@ -71,7 +71,7 @@ export default function ParametresPage() {
       await new Promise((resolve) => setTimeout(resolve, 500));
       toast("Parametres enregistres avec succes", "success");
     } catch {
-      toast("Erreur lors de l'enregistrement", "error");
+      toast("Erreur lors de l&apos;enregistrement", "error");
     } finally {
       setIsSaving(false);
     }
@@ -235,7 +235,7 @@ export default function ParametresPage() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     <Building2 className="w-4 h-4 inline mr-1" />
-                    Nom de l'entreprise
+                    Nom de l&apos;entreprise
                   </label>
                   <input
                     type="text"
@@ -374,7 +374,7 @@ export default function ParametresPage() {
                         Rapport hebdomadaire
                       </p>
                       <p className="text-xs text-gray-500">
-                        Recevoir un resume de l'activite chaque semaine
+                        Recevoir un resume de l&apos;activite chaque semaine
                       </p>
                     </div>
                     <input
@@ -432,7 +432,7 @@ export default function ParametresPage() {
                         Toutes les notifications
                       </p>
                       <p className="text-xs text-gray-500">
-                        Afficher les notifications dans l'application
+                        Afficher les notifications dans l&apos;application
                       </p>
                     </div>
                     <input
@@ -459,7 +459,7 @@ export default function ParametresPage() {
                     Securite du compte
                   </h2>
                   <p className="text-sm text-gray-500">
-                    Gerez la securite et l'acces a votre compte.
+                    Gerez la securite et l&apos;acces a votre compte.
                   </p>
                 </div>
 
@@ -512,14 +512,14 @@ export default function ParametresPage() {
                       <option value="480">8 heures</option>
                     </select>
                     <p className="text-xs text-gray-500 mt-2">
-                      Deconnexion automatique apres cette duree d'inactivite
+                      Deconnexion automatique apres cette duree d&apos;inactivite
                     </p>
                   </div>
                 </div>
 
                 <div className="pt-4 border-t border-gray-100 space-y-3">
                   <button className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors text-left">
-                    Voir l'historique des connexions
+                    Voir l&apos;historique des connexions
                   </button>
                   <button className="w-full px-4 py-3 border border-danger/30 rounded-lg text-sm font-medium text-danger hover:bg-danger/5 transition-colors text-left">
                     Deconnecter toutes les sessions

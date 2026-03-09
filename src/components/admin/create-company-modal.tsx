@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { X, Building2, User, Mail, Calendar, Target, Plus } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
 
 interface CreateCompanyModalProps {
@@ -104,7 +103,7 @@ export function CreateCompanyModal({ onClose, onCreated }: CreateCompanyModalPro
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               <Building2 className="w-4 h-4 inline mr-1" />
-              Nom de l'entreprise <span className="text-danger">*</span>
+              Nom de l&apos;entreprise <span className="text-danger">*</span>
             </label>
             <input
               type="text"
@@ -236,7 +235,7 @@ export function CreateCompanyModal({ onClose, onCreated }: CreateCompanyModalPro
                 Creation...
               </>
             ) : (
-              "Creer l'entreprise"
+              "Creer l&apos;entreprise"
             )}
           </button>
         </div>

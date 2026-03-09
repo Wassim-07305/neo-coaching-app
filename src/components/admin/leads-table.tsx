@@ -26,6 +26,24 @@ const stepColors: Record<BookingStep, string> = {
 type SortField = "name" | "date" | "step";
 type SortDir = "asc" | "desc";
 
+// Sort icon component moved outside of render
+function SortIcon({
+  field,
+  currentField,
+  currentDir,
+}: {
+  field: SortField;
+  currentField: SortField;
+  currentDir: SortDir;
+}) {
+  if (currentField !== field) return <ChevronUp className="w-3 h-3 text-gray-300" />;
+  return currentDir === "asc" ? (
+    <ChevronUp className="w-3 h-3 text-accent" />
+  ) : (
+    <ChevronDown className="w-3 h-3 text-accent" />
+  );
+}
+
 export function LeadsTable({ leads }: LeadsTableProps) {
   const [sortField, setSortField] = useState<SortField>("date");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -60,15 +78,6 @@ export function LeadsTable({ leads }: LeadsTableProps) {
     }
   }
 
-  function SortIcon({ field }: { field: SortField }) {
-    if (sortField !== field) return <ChevronUp className="w-3 h-3 text-gray-300" />;
-    return sortDir === "asc" ? (
-      <ChevronUp className="w-3 h-3 text-accent" />
-    ) : (
-      <ChevronDown className="w-3 h-3 text-accent" />
-    );
-  }
-
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-5">
       <h3 className="font-heading font-semibold text-sm text-dark mb-4">
@@ -85,7 +94,7 @@ export function LeadsTable({ leads }: LeadsTableProps) {
                 onClick={() => toggleSort("name")}
               >
                 <span className="flex items-center gap-1">
-                  Nom <SortIcon field="name" />
+                  Nom <SortIcon field="name" currentField={sortField} currentDir={sortDir} />
                 </span>
               </th>
               <th className="text-left pb-2 text-xs font-semibold text-gray-500 uppercase">
@@ -96,7 +105,7 @@ export function LeadsTable({ leads }: LeadsTableProps) {
                 onClick={() => toggleSort("step")}
               >
                 <span className="flex items-center gap-1">
-                  Etape <SortIcon field="step" />
+                  Etape <SortIcon field="step" currentField={sortField} currentDir={sortDir} />
                 </span>
               </th>
               <th className="text-left pb-2 text-xs font-semibold text-gray-500 uppercase">
@@ -107,7 +116,7 @@ export function LeadsTable({ leads }: LeadsTableProps) {
                 onClick={() => toggleSort("date")}
               >
                 <span className="flex items-center gap-1">
-                  Date <SortIcon field="date" />
+                  Date <SortIcon field="date" currentField={sortField} currentDir={sortDir} />
                 </span>
               </th>
               <th className="text-left pb-2 text-xs font-semibold text-gray-500 uppercase">

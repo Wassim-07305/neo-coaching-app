@@ -64,7 +64,7 @@ export function ParcoursTimeline({ modules }: ParcoursTimelineProps) {
             }}
           />
 
-          {modules.map((mod, index) => {
+          {modules.map((mod) => {
             const config = getStepConfig(mod.status);
             const isActive = mod.status === "en_cours";
 

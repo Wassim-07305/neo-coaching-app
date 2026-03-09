@@ -250,7 +250,6 @@ export function getParcoursTemplates(): ParcoursTemplate[] {
 }
 
 export function getParcoursStats() {
-  const now = new Date();
   return {
     total: mockAssignedParcours.length,
     inProgress: mockAssignedParcours.filter((p) => p.status === "in_progress").length,
