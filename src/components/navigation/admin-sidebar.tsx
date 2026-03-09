@@ -44,16 +44,27 @@ export function AdminSidebar() {
       : "?";
 
   const sidebarContent = (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full relative">
+      {/* Premium gradient accent */}
+      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-accent/50 to-transparent" />
+
       {/* Logo + Notification */}
-      <div className="flex items-center justify-between px-6 py-5 border-b border-white/10">
+      <div className="flex items-center justify-between px-6 py-5 border-b border-white/5">
         <div className="flex items-center gap-3">
-          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-success text-white font-heading font-bold text-sm">
-            NC
+          <div className="relative">
+            <div className="absolute inset-0 bg-accent/20 rounded-xl blur-lg" />
+            <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-accent to-accent/80 text-white font-heading font-bold text-sm shadow-lg shadow-accent/20">
+              NC
+            </div>
           </div>
-          <span className="font-heading font-semibold text-accent text-lg">
-            Neo-Coaching
-          </span>
+          <div>
+            <span className="font-heading font-bold text-white text-lg block leading-tight">
+              Neo-Coaching
+            </span>
+            <span className="text-[10px] text-accent/80 uppercase tracking-widest font-medium">
+              Administration
+            </span>
+          </div>
         </div>
         <NotificationBell className="[&_button]:text-gray-300 [&_button:hover]:text-white [&_button:hover]:bg-white/10" />
       </div>
@@ -69,13 +80,16 @@ export function AdminSidebar() {
               href={item.href}
               onClick={() => setMobileOpen(false)}
               className={cn(
-                "flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                "relative flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200",
                 isActive
-                  ? "bg-accent/15 text-accent border-l-2 border-accent"
-                  : "text-gray-300 hover:bg-white/5 hover:text-white"
+                  ? "bg-accent/15 text-accent shadow-sm shadow-accent/10"
+                  : "text-gray-400 hover:bg-white/5 hover:text-white"
               )}
             >
-              <item.icon className="w-5 h-5 shrink-0" />
+              {isActive && (
+                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-accent rounded-r-full" />
+              )}
+              <item.icon className={cn("w-5 h-5 shrink-0", isActive && "drop-shadow-sm")} />
               {item.label}
             </Link>
           );
@@ -83,25 +97,28 @@ export function AdminSidebar() {
       </nav>
 
       {/* User info */}
-      <div className="border-t border-white/10 px-4 py-4">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="flex items-center justify-center w-9 h-9 rounded-full bg-accent/20 text-accent text-xs font-semibold">
-            {initials}
+      <div className="border-t border-white/5 px-4 py-4 bg-gradient-to-t from-black/10 to-transparent">
+        <div className="flex items-center gap-3 mb-3 p-2 rounded-xl bg-white/5">
+          <div className="relative">
+            <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-accent/30 to-accent/10 text-accent text-sm font-bold ring-2 ring-accent/20">
+              {initials}
+            </div>
+            <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-success rounded-full border-2 border-primary" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-white truncate">
+            <p className="text-sm font-semibold text-white truncate">
               {profile
                 ? `${profile.first_name} ${profile.last_name}`
                 : "Chargement..."}
             </p>
-            <p className="text-xs text-gray-400 capitalize">
+            <p className="text-xs text-accent/80 capitalize font-medium">
               {profile?.role || ""}
             </p>
           </div>
         </div>
         <button
           onClick={signOut}
-          className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
+          className="flex items-center gap-2 w-full px-3 py-2.5 rounded-xl text-sm text-gray-400 hover:text-white hover:bg-danger/10 hover:text-danger transition-all"
         >
           <LogOut className="w-4 h-4" />
           Se deconnecter
