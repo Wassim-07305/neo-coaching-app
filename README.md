@@ -1,36 +1,149 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Neo-Coaching App
 
-## Getting Started
+Plateforme de coaching professionnel par **Jean-Claude YEKPE** (NEO-FORMATIONS).
 
-First, run the development server:
+Application web complete pour la gestion de parcours de coaching individuel et entreprise, avec suivi des KPIs, modules de formation, rendez-vous, communaute et reporting.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Stack technique
+
+- **Framework** : Next.js 16 (App Router, Turbopack)
+- **Langage** : TypeScript
+- **Base de donnees & Auth** : Supabase (PostgreSQL, Auth, Realtime, Storage)
+- **Styles** : Tailwind CSS v4 (theme custom)
+- **UI** : Lucide React (icones), React Hook Form + Zod (formulaires)
+- **PDF** : @react-pdf/renderer (certificats, rapports)
+- **PWA** : Service Worker, manifest, notifications push
+
+## Architecture
+
+```
+src/
+  app/
+    (public)/          # Pages publiques (landing, connexion, blog, intervenants, reservation)
+    (app)/
+      admin/           # Dashboard admin (coachees, entreprises, modules, RDV, rapports, parametres)
+      dirigeant/       # Espace dirigeant (dashboard, equipe, rapports, messages)
+      salarie/         # Espace salarie (dashboard, modules, agenda, communaute, profil)
+      coaching/        # Espace coache individuel (dashboard, modules, communaute, profil)
+      notifications/   # Centre de notifications
+      onboarding/      # Assistant d'onboarding
+  components/
+    admin/             # Composants admin (tables, formulaires, graphiques)
+    booking/           # Funnel de reservation (5 etapes)
+    coaching/          # Composants coache (timeline, certificats)
+    community/         # Chat, DM, reactions, mentions
+    dirigeant/         # KPIs agreges, comparaisons, rapports
+    landing/           # Sections page d'accueil
+    modules/           # Contenu module, exercices, quiz
+    navigation/        # Sidebar admin, bottom nav mobile
+    providers/         # AuthProvider (Supabase)
+    salarie/           # Indicateurs, taches, groupe
+    ui/                # Composants reutilisables (toast, KPI gauge, badges, chat IA)
+  lib/
+    supabase/          # Client, queries, hooks, adapters, middleware, types
+    mock-data.ts       # Donnees de demonstration
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Roles et acces
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Role | Prefix route | Description |
+|------|-------------|-------------|
+| **admin** | `/admin/*` | Jean-Claude YEKPE - gestion complete |
+| **dirigeant** | `/dirigeant/*` | Dirigeants d'entreprise - suivi equipe |
+| **salarie** | `/salarie/*` | Collaborateurs en coaching entreprise |
+| **coachee** | `/coaching/*` | Coaches individuels |
+| **intervenant** | `/intervenants` | Experts externes |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Le middleware protege les routes par role : un salarie ne peut pas acceder a `/admin/*`, etc.
 
-## Learn More
+## Fonctionnalites principales
 
-To learn more about Next.js, take a look at the following resources:
+### Admin
+- Dashboard avec statistiques temps reel (Supabase)
+- Gestion des coachees (liste, fiche detaillee, KPIs, modules, annotations)
+- Gestion des entreprises (liste, detail, import CSV)
+- Modules de formation (CRUD, contenu riche, exercices)
+- Calendrier RDV et pipeline booking
+- Rapports personnalises et export PDF
+- Gestion des co-coachs et permissions
+- Journal d'audit
+- Notifications push
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Dirigeant
+- KPIs agreges de l'equipe
+- Comparaison annuelle
+- Rapports de progression
+- Messagerie
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Salarie / Coache
+- Dashboard personnalise (KPIs, modules, taches, prochain RDV)
+- Parcours de modules avec exercices interactifs et quiz
+- Reflexions guidees
+- Badges et gamification
+- Communaute (chat de groupe, DM, reactions)
+- Certificats PDF telechargeables
+- Changement de mot de passe
 
-## Deploy on Vercel
+### Public
+- Landing page (services, parcours, tarifs, temoignages, FAQ, blog)
+- Funnel de reservation en 5 etapes
+- Fiches intervenants
+- Blog avec articles
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Installation
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+# Cloner le repo
+git clone https://github.com/Wassim-07305/neo-coaching-app.git
+cd neo-coaching-app
+
+# Installer les dependances
+npm install
+
+# Configurer les variables d'environnement
+cp .env.example .env.local
+# Remplir NEXT_PUBLIC_SUPABASE_URL et NEXT_PUBLIC_SUPABASE_ANON_KEY
+```
+
+## Variables d'environnement
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://votre-projet.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=votre-anon-key
+SUPABASE_SERVICE_ROLE_KEY=votre-service-role-key  # optionnel, pour les operations admin
+```
+
+> L'application fonctionne en **mode demo** sans configuration Supabase (donnees mock).
+
+## Developpement
+
+```bash
+# Lancer le serveur de dev
+npm run dev
+
+# Build de production
+npm run build
+
+# Linter
+npm run lint
+```
+
+## Base de donnees
+
+Les migrations Supabase sont dans `supabase/migrations/` :
+- `001_initial_schema.sql` : Schema complet (profiles, companies, modules, KPIs, appointments, messages, notifications, tasks, etc.)
+- `002_seed_admin.sql` : Donnees initiales (compte admin)
+
+## Deploiement
+
+Compatible Vercel, Netlify ou tout hebergement supportant Next.js.
+
+```bash
+npm run build
+```
+
+41 pages, 0 erreurs TypeScript.
+
+## Licence
+
+Projet prive - NEO-FORMATIONS / Jean-Claude YEKPE.
