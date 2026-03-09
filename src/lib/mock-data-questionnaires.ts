@@ -4,6 +4,7 @@
 // ===========================================================================
 
 export type QuestionType = "text" | "textarea" | "slider" | "radio";
+export type QuestionnairePhase = "amont" | "aval" | "mi-parcours";
 
 export interface MockQuestion {
   id: string;
@@ -21,7 +22,16 @@ export interface MockQuestionnaire {
   title: string;
   description: string;
   badge: string;
+  phase?: QuestionnairePhase;
+  googleFormsUrl?: string;
   questions: MockQuestion[];
+}
+
+export interface ModuleQuestionnaires {
+  moduleId: string;
+  moduleName: string;
+  amont: MockQuestionnaire | null;
+  aval: MockQuestionnaire | null;
 }
 
 export const mockQuestionnaires: MockQuestionnaire[] = [
@@ -146,4 +156,46 @@ export function getQuestionnaireById(
   id: string
 ): MockQuestionnaire | undefined {
   return mockQuestionnaires.find((q) => q.id === id);
+}
+
+// Module-grouped questionnaires for admin page
+export const moduleQuestionnaires: ModuleQuestionnaires[] = [
+  {
+    moduleId: "mod-1",
+    moduleName: "Intelligence Emotionnelle",
+    amont: {
+      id: "q-amont-1",
+      title: "Evaluation pre-formation IE",
+      description: "Questionnaire amont pour le module Intelligence Emotionnelle",
+      badge: "Amont",
+      phase: "amont",
+      questions: mockQuestionnaires[0].questions.slice(0, 3),
+    },
+    aval: {
+      ...mockQuestionnaires[0],
+      phase: "aval",
+    },
+  },
+  {
+    moduleId: "mod-2",
+    moduleName: "Estime de soi",
+    amont: null,
+    aval: {
+      ...mockQuestionnaires[1],
+      phase: "aval",
+    },
+  },
+];
+
+// Get questionnaires for a specific module
+export function getModuleQuestionnaires(moduleId: string): ModuleQuestionnaires | undefined {
+  return moduleQuestionnaires.find((mq) => mq.moduleId === moduleId);
+}
+
+// Get all questionnaires flattened
+export function getAllQuestionnaires(): MockQuestionnaire[] {
+  return mockQuestionnaires.map((q, i) => ({
+    ...q,
+    phase: i === 0 ? ("aval" as QuestionnairePhase) : ("mi-parcours" as QuestionnairePhase),
+  }));
 }
