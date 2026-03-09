@@ -7,6 +7,7 @@ import { mockModules } from "@/lib/mock-data";
 import { ExerciseSection } from "./exercise-section";
 import { LivrableUpload } from "./livrable-upload";
 import { SatisfactionForm } from "./satisfaction-form";
+import { QualiopiQuestionnaires } from "./qualiopi-questionnaires";
 import {
   ArrowLeft,
   Play,
@@ -161,6 +162,14 @@ export function ModuleContent({ moduleId, basePath }: ModuleContentProps) {
           </p>
         </div>
       </div>
+
+      {/* Qualiopi Questionnaires */}
+      <QualiopiQuestionnaires
+        moduleId={moduleId}
+        basePath={basePath}
+        moduleStarted={true}
+        moduleCompleted={moduleCompleted}
+      />
 
       {/* Video/Content Section */}
       <div className="space-y-6">
