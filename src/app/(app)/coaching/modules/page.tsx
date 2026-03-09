@@ -10,10 +10,12 @@ import {
   Play,
   ShoppingCart,
   ChevronRight,
+  ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
 import { mockModules } from "@/lib/mock-data";
+import { getModuleQuestionnaires } from "@/lib/mock-data-questionnaires";
 
 type ModuleStatus = "purchased" | "in_progress" | "completed" | "locked";
 
@@ -30,6 +32,14 @@ const userModules: UserModule[] = [
   { moduleId: "mod-3", status: "locked", progress: 0 },
   { moduleId: "mod-4", status: "locked", progress: 0 },
 ];
+
+// Mock questionnaire completion status
+const userQuestionnaireStatus: Record<string, { amont: boolean; aval: boolean }> = {
+  "mod-1": { amont: true, aval: true },
+  "mod-2": { amont: true, aval: false },
+  "mod-3": { amont: false, aval: false },
+  "mod-4": { amont: false, aval: false },
+};
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("fr-FR", {
@@ -150,11 +160,15 @@ export default function CoachingModulesPage() {
 
                     {/* Info */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-medium text-dark truncate">{module.title}</p>
                         <span className={cn("text-[10px] px-2 py-0.5 rounded-full", config.color)}>
                           {config.label}
                         </span>
+                        {/* Questionnaire indicator */}
+                        {getModuleQuestionnaires(module.id) && (
+                          <QuestionnaireIndicator moduleId={module.id} />
+                        )}
                       </div>
                       <p className="text-xs text-gray-500 mt-0.5">
                         {module.duration_weeks} semaines
@@ -264,5 +278,28 @@ export default function CoachingModulesPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// Questionnaire status indicator component
+function QuestionnaireIndicator({ moduleId }: { moduleId: string }) {
+  const qStatus = userQuestionnaireStatus[moduleId] || { amont: false, aval: false };
+  const total = 2;
+  const completed = (qStatus.amont ? 1 : 0) + (qStatus.aval ? 1 : 0);
+
+  if (completed === total) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-success/10 text-success">
+        <ClipboardList className="w-3 h-3" />
+        Qualiopi OK
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-warning/10 text-warning">
+      <ClipboardList className="w-3 h-3" />
+      {completed}/{total} questionnaires
+    </span>
   );
 }

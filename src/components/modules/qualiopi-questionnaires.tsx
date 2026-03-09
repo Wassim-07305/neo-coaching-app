@@ -20,13 +20,15 @@ interface QualiopiQuestionnairesProps {
   moduleCompleted?: boolean;
 }
 
-// Mock user questionnaire status
+// Mock user questionnaire status - mapped to actual module IDs
 const mockUserQuestionnaireStatus: Record<
   string,
   { amont: boolean; aval: boolean }
 > = {
-  "mod-leadership": { amont: true, aval: false },
-  "mod-communication": { amont: false, aval: false },
+  "mod-1": { amont: true, aval: false },  // Intelligence Emotionnelle
+  "mod-2": { amont: false, aval: false }, // Estime de soi
+  "mod-3": { amont: true, aval: false },  // Confiance en soi
+  "mod-4": { amont: false, aval: false }, // Prise de parole
 };
 
 export function QualiopiQuestionnaires({

@@ -152,110 +152,19 @@ const avalQuestionsTemplate: MockQuestion[] = [
   },
 ];
 
-// Module-specific questionnaires
+// Module-specific questionnaires - mapped to actual module IDs from mock-data.ts
 export const moduleQuestionnaires: ModuleQuestionnaires[] = [
   {
-    moduleId: "mod-leadership",
-    moduleName: "Leadership & Management",
-    amont: {
-      id: "q-leadership-amont",
-      title: "Questionnaire pre-formation - Leadership & Management",
-      description:
-        "Ce questionnaire permet d'evaluer vos attentes et votre niveau avant de debuter le module. Vos reponses nous aident a personnaliser votre accompagnement (conformite Qualiopi).",
-      badge: "Questionnaire Amont",
-      phase: "amont",
-      moduleId: "mod-leadership",
-      questions: amontQuestionsTemplate.map((q) => ({
-        ...q,
-        id: `leadership-${q.id}`,
-      })),
-    },
-    aval: {
-      id: "q-leadership-aval",
-      title: "Questionnaire post-formation - Leadership & Management",
-      description:
-        "Ce questionnaire d'evaluation permet de mesurer votre satisfaction et vos acquis. Vos reponses contribuent a l'amelioration continue (conformite Qualiopi).",
-      badge: "Questionnaire Aval",
-      phase: "aval",
-      moduleId: "mod-leadership",
-      questions: avalQuestionsTemplate.map((q) => ({
-        ...q,
-        id: `leadership-${q.id}`,
-      })),
-    },
-  },
-  {
-    moduleId: "mod-communication",
-    moduleName: "Communication Interpersonnelle",
-    amont: {
-      id: "q-communication-amont",
-      title: "Questionnaire pre-formation - Communication Interpersonnelle",
-      description:
-        "Ce questionnaire permet d'evaluer vos attentes et votre niveau avant de debuter le module. Vos reponses nous aident a personnaliser votre accompagnement (conformite Qualiopi).",
-      badge: "Questionnaire Amont",
-      phase: "amont",
-      moduleId: "mod-communication",
-      questions: amontQuestionsTemplate.map((q) => ({
-        ...q,
-        id: `communication-${q.id}`,
-      })),
-    },
-    aval: {
-      id: "q-communication-aval",
-      title: "Questionnaire post-formation - Communication Interpersonnelle",
-      description:
-        "Ce questionnaire d'evaluation permet de mesurer votre satisfaction et vos acquis. Vos reponses contribuent a l'amelioration continue (conformite Qualiopi).",
-      badge: "Questionnaire Aval",
-      phase: "aval",
-      moduleId: "mod-communication",
-      googleFormsUrl: "https://forms.google.com/example-communication", // Example external link
-      questions: avalQuestionsTemplate.map((q) => ({
-        ...q,
-        id: `communication-${q.id}`,
-      })),
-    },
-  },
-  {
-    moduleId: "mod-gestion-stress",
-    moduleName: "Gestion du Stress",
-    amont: {
-      id: "q-stress-amont",
-      title: "Questionnaire pre-formation - Gestion du Stress",
-      description:
-        "Ce questionnaire permet d'evaluer vos attentes et votre niveau avant de debuter le module (conformite Qualiopi).",
-      badge: "Questionnaire Amont",
-      phase: "amont",
-      moduleId: "mod-gestion-stress",
-      questions: amontQuestionsTemplate.map((q) => ({
-        ...q,
-        id: `stress-${q.id}`,
-      })),
-    },
-    aval: {
-      id: "q-stress-aval",
-      title: "Questionnaire post-formation - Gestion du Stress",
-      description:
-        "Ce questionnaire d'evaluation permet de mesurer votre satisfaction et vos acquis (conformite Qualiopi).",
-      badge: "Questionnaire Aval",
-      phase: "aval",
-      moduleId: "mod-gestion-stress",
-      questions: avalQuestionsTemplate.map((q) => ({
-        ...q,
-        id: `stress-${q.id}`,
-      })),
-    },
-  },
-  {
-    moduleId: "mod-intelligence-emotionnelle",
+    moduleId: "mod-1",
     moduleName: "Intelligence Emotionnelle",
     amont: {
       id: "q-ie-amont",
       title: "Questionnaire pre-formation - Intelligence Emotionnelle",
       description:
-        "Evaluez vos attentes et votre niveau actuel (conformite Qualiopi).",
+        "Ce questionnaire permet d'evaluer vos attentes et votre niveau avant de debuter le module. Vos reponses nous aident a personnaliser votre accompagnement (conformite Qualiopi).",
       badge: "Questionnaire Amont",
       phase: "amont",
-      moduleId: "mod-intelligence-emotionnelle",
+      moduleId: "mod-1",
       questions: amontQuestionsTemplate.map((q) => ({
         ...q,
         id: `ie-${q.id}`,
@@ -265,13 +174,104 @@ export const moduleQuestionnaires: ModuleQuestionnaires[] = [
       id: "q-ie-aval",
       title: "Questionnaire post-formation - Intelligence Emotionnelle",
       description:
-        "Evaluez votre satisfaction et vos acquis (conformite Qualiopi).",
+        "Ce questionnaire d'evaluation permet de mesurer votre satisfaction et vos acquis. Vos reponses contribuent a l'amelioration continue (conformite Qualiopi).",
       badge: "Questionnaire Aval",
       phase: "aval",
-      moduleId: "mod-intelligence-emotionnelle",
+      moduleId: "mod-1",
       questions: avalQuestionsTemplate.map((q) => ({
         ...q,
         id: `ie-${q.id}`,
+      })),
+    },
+  },
+  {
+    moduleId: "mod-2",
+    moduleName: "Estime de soi",
+    amont: {
+      id: "q-estime-amont",
+      title: "Questionnaire pre-formation - Estime de soi",
+      description:
+        "Ce questionnaire permet d'evaluer vos attentes et votre niveau avant de debuter le module. Vos reponses nous aident a personnaliser votre accompagnement (conformite Qualiopi).",
+      badge: "Questionnaire Amont",
+      phase: "amont",
+      moduleId: "mod-2",
+      questions: amontQuestionsTemplate.map((q) => ({
+        ...q,
+        id: `estime-${q.id}`,
+      })),
+    },
+    aval: {
+      id: "q-estime-aval",
+      title: "Questionnaire post-formation - Estime de soi",
+      description:
+        "Ce questionnaire d'evaluation permet de mesurer votre satisfaction et vos acquis. Vos reponses contribuent a l'amelioration continue (conformite Qualiopi).",
+      badge: "Questionnaire Aval",
+      phase: "aval",
+      moduleId: "mod-2",
+      questions: avalQuestionsTemplate.map((q) => ({
+        ...q,
+        id: `estime-${q.id}`,
+      })),
+    },
+  },
+  {
+    moduleId: "mod-3",
+    moduleName: "Confiance en soi",
+    amont: {
+      id: "q-confiance-amont",
+      title: "Questionnaire pre-formation - Confiance en soi",
+      description:
+        "Ce questionnaire permet d'evaluer vos attentes et votre niveau avant de debuter le module (conformite Qualiopi).",
+      badge: "Questionnaire Amont",
+      phase: "amont",
+      moduleId: "mod-3",
+      questions: amontQuestionsTemplate.map((q) => ({
+        ...q,
+        id: `confiance-${q.id}`,
+      })),
+    },
+    aval: {
+      id: "q-confiance-aval",
+      title: "Questionnaire post-formation - Confiance en soi",
+      description:
+        "Ce questionnaire d'evaluation permet de mesurer votre satisfaction et vos acquis (conformite Qualiopi).",
+      badge: "Questionnaire Aval",
+      phase: "aval",
+      moduleId: "mod-3",
+      googleFormsUrl: "https://forms.google.com/d/e/example-confiance", // Example external Google Forms
+      questions: avalQuestionsTemplate.map((q) => ({
+        ...q,
+        id: `confiance-${q.id}`,
+      })),
+    },
+  },
+  {
+    moduleId: "mod-4",
+    moduleName: "Prise de parole",
+    amont: {
+      id: "q-parole-amont",
+      title: "Questionnaire pre-formation - Prise de parole",
+      description:
+        "Evaluez vos attentes et votre niveau actuel en prise de parole (conformite Qualiopi).",
+      badge: "Questionnaire Amont",
+      phase: "amont",
+      moduleId: "mod-4",
+      questions: amontQuestionsTemplate.map((q) => ({
+        ...q,
+        id: `parole-${q.id}`,
+      })),
+    },
+    aval: {
+      id: "q-parole-aval",
+      title: "Questionnaire post-formation - Prise de parole",
+      description:
+        "Evaluez votre satisfaction et vos acquis en prise de parole (conformite Qualiopi).",
+      badge: "Questionnaire Aval",
+      phase: "aval",
+      moduleId: "mod-4",
+      questions: avalQuestionsTemplate.map((q) => ({
+        ...q,
+        id: `parole-${q.id}`,
       })),
     },
   },
@@ -440,16 +440,30 @@ export interface QuestionnaireResponse {
 export const mockQuestionnaireResponses: QuestionnaireResponse[] = [
   {
     id: "resp-1",
-    questionnaireId: "q-leadership-amont",
+    questionnaireId: "q-ie-amont",
     userId: "user-1",
-    moduleId: "mod-leadership",
+    moduleId: "mod-1",
     submittedAt: "2026-03-01T10:00:00Z",
     answers: {
-      "leadership-amont-1": "Ameliorer ma capacite a manager mon equipe",
-      "leadership-amont-2": "Intermediaire",
-      "leadership-amont-3": "Non",
-      "leadership-amont-4": "Devenir un leader inspire et inspirant",
-      "leadership-amont-5": 8,
+      "ie-amont-1": "Developper ma conscience emotionnelle et mieux gerer mes emotions",
+      "ie-amont-2": "Intermediaire",
+      "ie-amont-3": "Non",
+      "ie-amont-4": "Devenir plus empathique et mieux communiquer",
+      "ie-amont-5": 8,
+    },
+  },
+  {
+    id: "resp-2",
+    questionnaireId: "q-confiance-amont",
+    userId: "user-2",
+    moduleId: "mod-3",
+    submittedAt: "2026-03-05T14:30:00Z",
+    answers: {
+      "confiance-amont-1": "Gagner en assurance lors de presentations",
+      "confiance-amont-2": "Debutant",
+      "confiance-amont-3": "Oui",
+      "confiance-amont-4": "Prendre la parole en public sans stress",
+      "confiance-amont-5": 7,
     },
   },
 ];
