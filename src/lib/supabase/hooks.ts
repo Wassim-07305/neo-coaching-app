@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
 import * as queries from "./queries";
+import type { Notification } from "./types";
 
 // ─── Generic fetch hook ──────────────────────────────────────
 
@@ -121,6 +122,13 @@ export function useKpiHistory(userId?: string, limit = 12) {
   );
 }
 
+export function useCompanyKpis(companyId: string | null) {
+  return useQuery(
+    () => (companyId ? queries.getCompanyKpis(companyId) : Promise.resolve([])),
+    [companyId]
+  );
+}
+
 // ─── Appointments ────────────────────────────────────────────
 
 export function useUpcomingAppointments() {
@@ -160,7 +168,7 @@ export function useGroupMessages(groupId: string | null) {
 
 export function useNotifications() {
   const { user } = useAuth();
-  return useQuery(
+  return useQuery<Notification[]>(
     () => (user ? queries.getUserNotifications(user.id) : Promise.resolve([])),
     [user?.id]
   );

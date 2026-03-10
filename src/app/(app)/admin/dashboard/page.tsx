@@ -1,17 +1,45 @@
 "use client";
 
+import { useMemo } from "react";
 import { LayoutDashboard, UserPlus, Download } from "lucide-react";
 import { StatsBar } from "@/components/admin/stats-bar";
 import { CoacheeTable } from "@/components/admin/coachee-table";
 import { EnterpriseKpis } from "@/components/admin/enterprise-kpis";
 import { ActivityFeed } from "@/components/admin/activity-feed";
 import { PushPermissionCard } from "@/components/ui/push-permission-card";
-import { useAdminDashboardStats } from "@/lib/supabase/hooks";
+import { useAdminDashboardStats, useCoachees, useCompanies } from "@/lib/supabase/hooks";
+import { adaptCompany } from "@/lib/supabase/adapters";
 import {
   mockCoachees,
   mockCompanies,
   mockActivities,
 } from "@/lib/mock-data";
+import type { MockCoachee } from "@/lib/mock-data";
+
+// ─── Adapt Supabase profile to MockCoachee shape ─────────────
+function adaptCoachee(p: Record<string, unknown>): MockCoachee {
+  const companies = p.companies as { name: string } | null;
+  return {
+    id: p.id as string,
+    first_name: (p.first_name as string) || "",
+    last_name: (p.last_name as string) || "",
+    email: (p.email as string) || "",
+    avatar_url: (p.avatar_url as string) || null,
+    type: p.company_id ? "entreprise" : "individuel",
+    company_id: (p.company_id as string) || null,
+    company_name: companies?.name || null,
+    status: ((p.status as string) === "active" ? "actif" : "inactif") as MockCoachee["status"],
+    start_date: (p.created_at as string) || "",
+    current_module: null,
+    kpis: { investissement: 5, efficacite: 5, participation: 5 },
+    kpi_history: [],
+    module_progress: [],
+    livrables: [],
+    calls: [],
+    certificates: [],
+    last_activity: (p.updated_at as string) || (p.created_at as string) || "",
+  };
+}
 
 // Mock fallback stats
 function getMockStats() {
@@ -35,13 +63,33 @@ function getMockStats() {
 
 export default function AdminDashboardPage() {
   const { data: stats } = useAdminDashboardStats();
+  const { data: supaCoachees } = useCoachees();
+  const { data: supaCompanies } = useCompanies();
   const mock = getMockStats();
+
+  // ─── Coachees: Supabase with mock fallback ─────────────────
+  const coachees = useMemo(
+    () => (supaCoachees ? supaCoachees.map(adaptCoachee) : mockCoachees),
+    [supaCoachees]
+  );
+
+  const companyNames = useMemo(
+    () => [...new Set(coachees.filter((c) => c.company_name).map((c) => c.company_name as string))],
+    [coachees]
+  );
+
+  // ─── Companies: Supabase with mock fallback ────────────────
+  const companies = useMemo(
+    () =>
+      supaCompanies
+        ? supaCompanies.map((c) => adaptCompany(c as Parameters<typeof adaptCompany>[0]))
+        : mockCompanies,
+    [supaCompanies]
+  );
 
   // Real Supabase stats with mock fallback
   const activeCoachees = stats?.activeCoachees ?? mock.activeCoachees;
   const activeCompanies = stats?.totalCompanies ?? mock.activeCompanies;
-
-  const companyNames = [...new Set(mockCoachees.filter((c) => c.company_name).map((c) => c.company_name as string))];
 
   return (
     <div className="space-y-6">
@@ -84,11 +132,11 @@ export default function AdminDashboardPage() {
             <h2 className="font-heading font-semibold text-lg text-dark mb-3">
               Coachees
             </h2>
-            <CoacheeTable coachees={mockCoachees} companies={companyNames} />
+            <CoacheeTable coachees={coachees} companies={companyNames} />
           </div>
 
           {/* Enterprise KPIs */}
-          <EnterpriseKpis companies={mockCompanies} />
+          <EnterpriseKpis companies={companies} />
         </div>
 
         {/* Activity feed sidebar */}

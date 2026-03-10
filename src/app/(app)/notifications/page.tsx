@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Bell,
   Award,
@@ -14,6 +14,12 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/components/providers/auth-provider";
+import { useNotifications } from "@/lib/supabase/hooks";
+import {
+  markNotificationRead,
+  markAllNotificationsRead,
+} from "@/lib/supabase/queries";
 import type { NotificationType } from "@/hooks/use-notifications";
 
 const notificationIcons: Record<NotificationType, typeof Award> = {
@@ -53,7 +59,8 @@ interface FullNotification {
   createdAt: string;
 }
 
-const allNotifications: FullNotification[] = [
+// Fallback mock data used when Supabase returns null/empty
+const fallbackNotifications: FullNotification[] = [
   {
     id: "notif-1",
     type: "module_complete",
@@ -186,7 +193,7 @@ type FilterType = "tous" | NotificationType;
 
 function formatDate(dateStr: string): string {
   const date = new Date(dateStr);
-  const now = new Date("2026-03-08T12:00:00");
+  const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
@@ -201,13 +208,57 @@ function formatDate(dateStr: string): string {
   });
 }
 
+function NotificationSkeleton() {
+  return (
+    <div className="space-y-4">
+      {[...Array(5)].map((_, i) => (
+        <div
+          key={i}
+          className="bg-white rounded-xl border border-gray-200 p-4 flex items-start gap-4 animate-pulse"
+        >
+          <div className="w-10 h-10 rounded-lg bg-gray-200 shrink-0" />
+          <div className="flex-1 space-y-2">
+            <div className="h-4 bg-gray-200 rounded w-1/3" />
+            <div className="h-3 bg-gray-100 rounded w-2/3" />
+            <div className="h-2 bg-gray-100 rounded w-1/4 mt-2" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function NotificationsPage() {
+  const { user } = useAuth();
+  const { data: supabaseNotifications, loading, refetch } = useNotifications();
+
+  // Map Supabase data to FullNotification format, fallback to mock data
+  const initialNotifications = useMemo<FullNotification[]>(() => {
+    if (supabaseNotifications && supabaseNotifications.length > 0) {
+      return supabaseNotifications.map((n) => ({
+        id: n.id,
+        type: n.type as NotificationType,
+        title: n.title,
+        body: n.body,
+        link: n.link || "",
+        read: n.is_read,
+        createdAt: n.created_at,
+      }));
+    }
+    return fallbackNotifications;
+  }, [supabaseNotifications]);
+
   const [notifications, setNotifications] =
-    useState<FullNotification[]>(allNotifications);
+    useState<FullNotification[]>(fallbackNotifications);
   const [filterType, setFilterType] = useState<FilterType>("tous");
   const [filterRead, setFilterRead] = useState<"tous" | "non_lues" | "lues">(
     "tous"
   );
+
+  // Sync local state when Supabase data arrives
+  useEffect(() => {
+    setNotifications(initialNotifications);
+  }, [initialNotifications]);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
@@ -218,22 +269,41 @@ export default function NotificationsPage() {
     return true;
   });
 
-  function markAsRead(id: string) {
+  async function markAsRead(id: string) {
+    // Optimistic update
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n))
     );
+    try {
+      await markNotificationRead(id);
+    } catch {
+      // Revert on error
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, read: false } : n))
+      );
+    }
   }
 
-  function markAllAsRead() {
+  async function markAllAsRead() {
+    // Optimistic update
+    const previousNotifications = notifications;
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    try {
+      if (user) {
+        await markAllNotificationsRead(user.id);
+      }
+    } catch {
+      // Revert on error
+      setNotifications(previousNotifications);
+    }
   }
 
   function deleteNotification(id: string) {
     setNotifications((prev) => prev.filter((n) => n.id !== id));
   }
 
-  // Group by date
-  const today = new Date("2026-03-08");
+  // Group by date using real current date
+  const today = new Date();
   const groups: { label: string; items: FullNotification[] }[] = [];
   const todayItems = filtered.filter(
     (n) => new Date(n.createdAt).toDateString() === today.toDateString()
@@ -334,8 +404,10 @@ export default function NotificationsPage() {
         </div>
       </div>
 
-      {/* Notification list grouped */}
-      {groups.length > 0 ? (
+      {/* Loading skeleton */}
+      {loading ? (
+        <NotificationSkeleton />
+      ) : groups.length > 0 ? (
         groups.map((group) => (
           <div key={group.label}>
             <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">

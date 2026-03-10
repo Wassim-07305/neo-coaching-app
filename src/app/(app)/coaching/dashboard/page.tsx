@@ -9,44 +9,148 @@ import { CertificatesGallery } from "@/components/coaching/certificates-gallery"
 import { SatisfactionHistory } from "@/components/coaching/satisfaction-history";
 import { NextCall } from "@/components/coaching/next-call";
 import { mockCoachees, mockModules } from "@/lib/mock-data";
+import type { MockModuleProgress, MockLivrable } from "@/lib/mock-data";
 import { PushPermissionCard } from "@/components/ui/push-permission-card";
+import { useAuth } from "@/components/providers/auth-provider";
+import { useProfile, useMyModuleProgress, useMyAppointments } from "@/lib/supabase/hooks";
 
-// Use Isabelle Fontaine as the logged-in individual coachee
-const currentUser = mockCoachees[7]; // Isabelle Fontaine (individuel)
-
-// Find current module details
-const currentModuleName = currentUser.current_module;
-const currentModuleData = mockModules.find((m) => m.title === currentModuleName);
-const currentModuleProgress = currentUser.module_progress.find((m) => m.status === "en_cours");
-
-// Calculate parcours progress
-const totalModules = currentUser.module_progress.length;
-const completedModules = currentUser.module_progress.filter((m) => m.status === "complete").length;
-const parcoursProgress = totalModules > 0 ? Math.round((completedModules / totalModules) * 100) : 0;
-
-// Livrables for current module
-const currentModuleLivrables = currentUser.livrables.filter(
-  (l) => l.module_title === currentModuleName
-);
-const delivrablesSubmitted = currentModuleLivrables.length;
-const delivrablesTotal = 3; // Typically ecrit + audio + video
-
-// Next call
-const nextCall = {
-  date: "2026-03-02",
-  time: "11:00",
-  duration: "1h",
-  zoomLink: "https://zoom.us/j/777888999",
-  daysUntil: 4,
-};
+// Fallback mock data
+const fallbackUser = mockCoachees[7]; // Isabelle Fontaine (individuel)
 
 export default function CoachingDashboardPage() {
-  const today = new Date("2026-02-26");
+  const { profile: authProfile } = useAuth();
+  const { data: supaProfile } = useProfile();
+  const { data: moduleProgress } = useMyModuleProgress();
+  const { data: supaAppointments } = useMyAppointments();
+
+  // ── User name ──────────────────────────────────────────────
+  const firstName = supaProfile?.first_name ?? authProfile?.first_name ?? fallbackUser.first_name;
+
+  // ── Date ───────────────────────────────────────────────────
+  const today = new Date();
   const formattedDate = today.toLocaleDateString("fr-FR", {
     weekday: "long",
     day: "numeric",
     month: "long",
   });
+
+  // ── Module progress (parcours) ─────────────────────────────
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const modules: MockModuleProgress[] = moduleProgress
+    ? (moduleProgress as any[]).map((mp) => ({
+        module_id: mp.module_id,
+        module_title: mp.modules?.title || "Module",
+        status: mp.status === "in_progress"
+          ? "en_cours"
+          : mp.status === "validated"
+            ? "complete"
+            : mp.status === "submitted"
+              ? "en_cours"
+              : "non_commence",
+        satisfaction_score: mp.satisfaction_score ?? undefined,
+      }))
+    : fallbackUser.module_progress;
+
+  // ── Parcours progress ──────────────────────────────────────
+  const totalModules = modules.length;
+  const completedModules = modules.filter((m) => m.status === "complete").length;
+  const parcoursProgress = totalModules > 0 ? Math.round((completedModules / totalModules) * 100) : 0;
+
+  // ── Current module (in_progress) ───────────────────────────
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mpList = moduleProgress as any[] | null;
+  const currentMp = mpList?.find((mp) => mp.status === "in_progress");
+  const currentModuleTitle = currentMp?.modules?.title
+    ?? fallbackUser.current_module;
+
+  const currentModuleData = currentModuleTitle
+    ? mockModules.find((m) => m.title === currentModuleTitle)
+    : null;
+
+  const currentModuleProgress = modules.find((m) => m.status === "en_cours");
+
+  // ── Livrables ──────────────────────────────────────────────
+  // Build livrables from Supabase module_progress (written_summary_url, audio_url, video_url)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const livrables: MockLivrable[] = mpList
+    ? mpList.flatMap((mp: any) => {
+        const items: MockLivrable[] = [];
+        const title = mp.modules?.title || "Module";
+        const status = mp.status === "validated" ? "valide" as const : "en_attente" as const;
+        const date = mp.submitted_at || mp.created_at;
+        if (mp.written_summary_url) {
+          items.push({
+            id: `${mp.id}-ecrit`,
+            module_title: title,
+            type: "ecrit" as const,
+            submission_date: date,
+            status,
+            file_name: mp.written_summary_url.split("/").pop() || "resume.pdf",
+          });
+        }
+        if (mp.audio_url) {
+          items.push({
+            id: `${mp.id}-audio`,
+            module_title: title,
+            type: "audio" as const,
+            submission_date: date,
+            status,
+            file_name: mp.audio_url.split("/").pop() || "audio.mp3",
+          });
+        }
+        if (mp.video_url) {
+          items.push({
+            id: `${mp.id}-video`,
+            module_title: title,
+            type: "video" as const,
+            submission_date: date,
+            status,
+            file_name: mp.video_url.split("/").pop() || "video.mp4",
+          });
+        }
+        return items;
+      })
+    : fallbackUser.livrables;
+
+  const delivrablesSubmitted = currentModuleTitle
+    ? livrables.filter((l) => l.module_title === currentModuleTitle).length
+    : 0;
+  const delivrablesTotal = 3; // ecrit + audio + video
+
+  // ── Certificates ───────────────────────────────────────────
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const certificates = mpList
+    ? mpList
+        .filter((mp: any) => mp.status === "validated" && mp.certificate_url)
+        .map((mp: any) => ({
+          id: mp.id,
+          module_title: mp.modules?.title || "Module",
+          earned_date: mp.validated_at || mp.created_at,
+        }))
+    : fallbackUser.certificates;
+
+  // ── Next call ──────────────────────────────────────────────
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const apptList = supaAppointments as any[] | null;
+  const nextAppt = apptList
+    ? apptList.find((a) => new Date(a.datetime_start) > new Date() && a.status === "scheduled")
+    : null;
+
+  const nextCall = nextAppt
+    ? {
+        date: nextAppt.datetime_start.split("T")[0],
+        time: new Date(nextAppt.datetime_start).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
+        duration: "1h",
+        zoomLink: nextAppt.zoom_link || "https://zoom.us/j/000000000",
+        daysUntil: Math.ceil((new Date(nextAppt.datetime_start).getTime() - Date.now()) / (1000 * 60 * 60 * 24)),
+      }
+    : {
+        date: "2026-03-02",
+        time: "11:00",
+        duration: "1h",
+        zoomLink: "https://zoom.us/j/777888999",
+        daysUntil: 4,
+      };
 
   return (
     <div className="space-y-5">
@@ -55,7 +159,7 @@ export default function CoachingDashboardPage() {
       <div>
         <div className="flex items-center gap-2">
           <h1 className="font-heading text-xl md:text-2xl font-bold text-dark">
-            Bonjour, {currentUser.first_name} !
+            Bonjour, {firstName} !
           </h1>
           <Sparkles className="w-5 h-5 text-accent" />
         </div>
@@ -76,7 +180,7 @@ export default function CoachingDashboardPage() {
       </div>
 
       {/* 2. Mon Parcours (Timeline) */}
-      <ParcoursTimeline modules={currentUser.module_progress} />
+      <ParcoursTimeline modules={modules} />
 
       {/* 3. Module en cours */}
       {currentModuleData && currentModuleProgress && (
@@ -91,17 +195,17 @@ export default function CoachingDashboardPage() {
       )}
 
       {/* 4. Mes Livrables */}
-      {currentModuleName && (
+      {currentModuleTitle && (
         <LivrablesSection
-          livrables={currentUser.livrables}
-          currentModuleTitle={currentModuleName}
+          livrables={livrables}
+          currentModuleTitle={currentModuleTitle}
         />
       )}
 
       {/* 5 & 6. Certificates + Satisfaction side by side on desktop */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        <CertificatesGallery certificates={currentUser.certificates} />
-        <SatisfactionHistory modules={currentUser.module_progress} />
+        <CertificatesGallery certificates={certificates} />
+        <SatisfactionHistory modules={modules} />
       </div>
 
       {/* 7 & 8. Prochain Call + Communaute side by side on desktop */}

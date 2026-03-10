@@ -9,32 +9,37 @@ import { EvolutionChart } from "@/components/dirigeant/evolution-chart";
 import type { EvolutionDataPoint } from "@/components/dirigeant/evolution-chart";
 import { ModuleCompletion } from "@/components/dirigeant/module-completion";
 import { ReportsPreview } from "@/components/dirigeant/reports-preview";
+import { useProfile, useCompany, useCompanyKpis } from "@/lib/supabase/hooks";
+import type { Company, KpiScore } from "@/lib/supabase/types";
 import { mockCompanies, mockCoachees, getCompanyAverageKpis } from "@/lib/mock-data";
 
-// Use Alpha Corp as the dirigeant's company
-const company = mockCompanies[0];
-const companyKpis = getCompanyAverageKpis(company.id);
+// ─── Mock fallback data ─────────────────────────────────────
 
-// Compute aggregated evolution data from team members
-const teamMembers = mockCoachees.filter((c) => c.company_id === company.id);
+const fallbackCompany = mockCompanies[0];
+const fallbackTeam = mockCoachees.filter((c) => c.company_id === fallbackCompany.id);
+const fallbackKpis = getCompanyAverageKpis(fallbackCompany.id);
 
-function computeAggregatedHistory(): EvolutionDataPoint[] {
-  const allMonths = new Set<string>();
-  teamMembers.forEach((m) => m.kpi_history.forEach((h) => allMonths.add(h.month)));
+const MONTH_ORDER: Record<string, number> = {
+  "Jan": 1, "Fev": 2, "Mar": 3, "Avr": 4, "Mai": 5, "Jun": 6,
+  "Jul": 7, "Aou": 8, "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12,
+};
+const MONTH_NAMES = ["Jan", "Fev", "Mar", "Avr", "Mai", "Jun", "Jul", "Aou", "Sep", "Oct", "Nov", "Dec"];
 
-  const sortedMonths = Array.from(allMonths).sort((a, b) => {
-    const monthOrder: Record<string, number> = {
-      "Jan": 1, "Fev": 2, "Mar": 3, "Avr": 4, "Mai": 5, "Jun": 6,
-      "Jul": 7, "Aou": 8, "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12,
-    };
+function sortMonthLabels(months: string[]): string[] {
+  return months.sort((a, b) => {
     const [mA, yA] = a.split(" ");
     const [mB, yB] = b.split(" ");
     if (yA !== yB) return parseInt(yA) - parseInt(yB);
-    return (monthOrder[mA] || 0) - (monthOrder[mB] || 0);
+    return (MONTH_ORDER[mA] || 0) - (MONTH_ORDER[mB] || 0);
   });
+}
 
-  return sortedMonths.map((month) => {
-    const members = teamMembers.filter((m) =>
+function computeMockEvolution(): EvolutionDataPoint[] {
+  const allMonths = new Set<string>();
+  fallbackTeam.forEach((m) => m.kpi_history.forEach((h) => allMonths.add(h.month)));
+
+  return sortMonthLabels(Array.from(allMonths)).map((month) => {
+    const members = fallbackTeam.filter((m) =>
       m.kpi_history.some((h) => h.month === month)
     );
     const count = members.length || 1;
@@ -59,25 +64,20 @@ function computeAggregatedHistory(): EvolutionDataPoint[] {
   });
 }
 
-const evolutionData = computeAggregatedHistory();
+const fallbackEvolution = computeMockEvolution();
 
-// Previous month KPIs for trend
-const previousMonthData = evolutionData.length >= 2 ? evolutionData[evolutionData.length - 2] : undefined;
-
-// Module completion stats
-const totalModuleSlots = teamMembers.reduce((acc, m) => acc + m.module_progress.length, 0);
-const completedModuleSlots = teamMembers.reduce(
+// Module completion stats from mock
+const fallbackTotalModules = fallbackTeam.reduce((acc, m) => acc + m.module_progress.length, 0);
+const fallbackCompletedModules = fallbackTeam.reduce(
   (acc, m) => acc + m.module_progress.filter((p) => p.status === "complete").length,
   0
 );
-
-// Satisfaction (avg from completed modules with scores)
-const allSatisfactionScores = teamMembers.flatMap((m) =>
+const fallbackSatisfactionScores = fallbackTeam.flatMap((m) =>
   m.module_progress.filter((p) => p.satisfaction_score !== undefined).map((p) => p.satisfaction_score!)
 );
-const avgSatisfaction =
-  allSatisfactionScores.length > 0
-    ? Math.round((allSatisfactionScores.reduce((a, b) => a + b, 0) / allSatisfactionScores.length) * 10) / 10
+const fallbackAvgSatisfaction =
+  fallbackSatisfactionScores.length > 0
+    ? Math.round((fallbackSatisfactionScores.reduce((a, b) => a + b, 0) / fallbackSatisfactionScores.length) * 10) / 10
     : 0;
 
 // Mock reports
@@ -87,8 +87,111 @@ const mockReports = [
   { id: "r-3", title: "Rapport Decembre 2025", date: "2025-12-31", period: "Decembre 2025" },
 ];
 
+// ─── Helpers: derive data from Supabase KPI scores ──────────
+
+function computeAggregatedKpis(scores: KpiScore[]) {
+  if (scores.length === 0) return fallbackKpis;
+
+  // Get the latest score per user (scores are ordered desc by scored_at)
+  const latestByUser = new Map<string, { investissement: number; efficacite: number; participation: number }>();
+  for (const score of scores) {
+    if (!latestByUser.has(score.user_id)) {
+      latestByUser.set(score.user_id, {
+        investissement: score.investissement,
+        efficacite: score.efficacite,
+        participation: score.participation,
+      });
+    }
+  }
+  const entries = Array.from(latestByUser.values());
+  const count = entries.length || 1;
+  const sum = entries.reduce(
+    (acc, e) => ({
+      investissement: acc.investissement + e.investissement,
+      efficacite: acc.efficacite + e.efficacite,
+      participation: acc.participation + e.participation,
+    }),
+    { investissement: 0, efficacite: 0, participation: 0 }
+  );
+  return {
+    investissement: Math.round((sum.investissement / count) * 10) / 10,
+    efficacite: Math.round((sum.efficacite / count) * 10) / 10,
+    participation: Math.round((sum.participation / count) * 10) / 10,
+  };
+}
+
+function computeEvolutionFromScores(scores: KpiScore[]): EvolutionDataPoint[] {
+  if (scores.length === 0) return fallbackEvolution;
+
+  const byMonth = new Map<string, { investissement: number; efficacite: number; participation: number; count: number }>();
+  for (const score of scores) {
+    const d = new Date(score.scored_at);
+    const label = `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
+    const existing = byMonth.get(label) || { investissement: 0, efficacite: 0, participation: 0, count: 0 };
+    existing.investissement += score.investissement;
+    existing.efficacite += score.efficacite;
+    existing.participation += score.participation;
+    existing.count += 1;
+    byMonth.set(label, existing);
+  }
+
+  return sortMonthLabels(Array.from(byMonth.keys())).map((month) => {
+    const d = byMonth.get(month)!;
+    return {
+      month,
+      investissement: Math.round((d.investissement / d.count) * 10) / 10,
+      efficacite: Math.round((d.efficacite / d.count) * 10) / 10,
+      participation: Math.round((d.participation / d.count) * 10) / 10,
+    };
+  });
+}
+
+function extractObjectives(company: Company | null): string[] {
+  if (!company?.kpi_objectives) return fallbackCompany.objectives;
+  if (Array.isArray(company.kpi_objectives)) {
+    return company.kpi_objectives as unknown as string[];
+  }
+  if (typeof company.kpi_objectives === "object") {
+    const obj = company.kpi_objectives as Record<string, unknown>;
+    if (Array.isArray(obj.objectives)) return obj.objectives as string[];
+  }
+  return fallbackCompany.objectives;
+}
+
+// ─── Page Component ─────────────────────────────────────────
+
 export default function DirigeantDashboardPage() {
-  const today = new Date("2026-02-26");
+  // 1. Fetch current user's profile to get company_id
+  const { data: profile, loading: profileLoading } = useProfile();
+  const companyId = profile?.company_id ?? null;
+
+  // 2. Fetch company & KPIs from Supabase
+  const { data: rawCompany, loading: companyLoading } = useCompany(companyId);
+  const company = rawCompany as Company | null;
+  const { data: rawKpis, loading: kpisLoading } = useCompanyKpis(companyId);
+  const companyKpiScores = (rawKpis ?? []) as KpiScore[];
+
+  // 3. Derive display values with mock fallback
+  const firstName = profile
+    ? profile.first_name
+    : fallbackCompany.dirigeant_name.split(" ")[0];
+  const companyName = company?.name ?? fallbackCompany.name;
+  const objectives = extractObjectives(company);
+  const missionStart = company?.mission_start_date ?? fallbackCompany.mission_start;
+  const missionEnd = company?.mission_end_date ?? fallbackCompany.mission_end;
+
+  // 4. Aggregated KPIs & evolution from Supabase or mock fallback
+  const aggregatedKpis = computeAggregatedKpis(companyKpiScores);
+  const evolutionData = computeEvolutionFromScores(companyKpiScores);
+  const previousMonthData = evolutionData.length >= 2 ? evolutionData[evolutionData.length - 2] : undefined;
+
+  // 5. Module completion & satisfaction — keep mock for now (no Supabase aggregate query yet)
+  const totalModuleSlots = fallbackTotalModules;
+  const completedModuleSlots = fallbackCompletedModules;
+  const avgSatisfaction = fallbackAvgSatisfaction;
+
+  // 6. Real date
+  const today = new Date();
   const formattedDate = today.toLocaleDateString("fr-FR", {
     weekday: "long",
     day: "numeric",
@@ -96,34 +199,48 @@ export default function DirigeantDashboardPage() {
     year: "numeric",
   });
 
+  // Loading state
+  const isLoading = profileLoading || companyLoading || kpisLoading;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center space-y-3">
+          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-sm text-gray-500">Chargement...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* 1. Welcome Header */}
       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="font-heading text-2xl md:text-3xl font-bold text-dark">
-            Bonjour, {company.dirigeant_name.split(" ")[0]}
+            Bonjour, {firstName}
           </h1>
           <p className="text-sm text-gray-500 capitalize mt-1">{formattedDate}</p>
         </div>
         <div className="flex items-center gap-2 bg-primary/10 px-4 py-2 rounded-lg">
           <Building2 className="w-4 h-4 text-primary" />
-          <span className="font-heading font-semibold text-sm text-primary">{company.name}</span>
+          <span className="font-heading font-semibold text-sm text-primary">{companyName}</span>
         </div>
       </div>
 
       {/* 2. KPI Objectives Reminder */}
       <KpiObjectives
-        objectives={company.objectives}
-        missionStart={company.mission_start}
-        missionEnd={company.mission_end}
+        objectives={objectives}
+        missionStart={missionStart}
+        missionEnd={missionEnd}
       />
 
       {/* 3. Aggregated KPI Indicators */}
       <AggregatedKpis
-        investissement={companyKpis.investissement}
-        efficacite={companyKpis.efficacite}
-        participation={companyKpis.participation}
+        investissement={aggregatedKpis.investissement}
+        efficacite={aggregatedKpis.efficacite}
+        participation={aggregatedKpis.participation}
         previousInvestissement={previousMonthData?.investissement}
         previousEfficacite={previousMonthData?.efficacite}
         previousParticipation={previousMonthData?.participation}
