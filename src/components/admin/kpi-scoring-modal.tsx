@@ -4,6 +4,7 @@ import { useState } from "react";
 import { X, Save, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
+import { insertKpiScore } from "@/hooks/use-supabase-data";
 
 interface KpiScoringModalProps {
   coacheeId: string;
@@ -97,6 +98,7 @@ function KpiSlider({
 }
 
 export function KpiScoringModal({
+  coacheeId,
   coacheeName,
   currentKpis,
   onClose,
@@ -117,8 +119,14 @@ export function KpiScoringModal({
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      // TODO: Save to Supabase kpi_scores table
-      await new Promise((resolve) => setTimeout(resolve, 500)); // Simulate API call
+      const { error } = await insertKpiScore({
+        user_id: coacheeId,
+        investissement,
+        efficacite,
+        participation,
+        notes: notes || undefined,
+      });
+      if (error) throw error;
       onSave({ investissement, efficacite, participation, notes });
       toast("Indicateurs mis a jour avec succes", "success");
       onClose();

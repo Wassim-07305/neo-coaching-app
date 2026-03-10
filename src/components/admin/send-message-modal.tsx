@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { X, Send, User } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
+import { insertMessage } from "@/hooks/use-supabase-data";
+import { useAuth } from "@/components/providers/auth-provider";
 
 interface SendMessageModalProps {
   recipientId: string;
@@ -11,10 +13,12 @@ interface SendMessageModalProps {
 }
 
 export function SendMessageModal({
+  recipientId,
   recipientName,
   onClose,
 }: SendMessageModalProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [message, setMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
 
@@ -26,8 +30,12 @@ export function SendMessageModal({
 
     setIsSending(true);
     try {
-      // TODO: Save to Supabase messages table (DM)
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      const { error } = await insertMessage({
+        sender_id: user?.id || "",
+        content: message.trim(),
+        recipient_id: recipientId,
+      });
+      if (error) throw error;
       toast("Message envoye avec succes", "success");
       onClose();
     } catch {

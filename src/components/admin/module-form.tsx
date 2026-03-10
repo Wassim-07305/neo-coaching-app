@@ -4,6 +4,8 @@ import { useState, useMemo } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { MockModule, ParcoursType } from "@/lib/mock-data";
+import { upsertModule } from "@/hooks/use-supabase-data";
+import { useToast } from "@/components/ui/toast";
 
 interface ModuleFormProps {
   module?: MockModule | null;
@@ -48,6 +50,8 @@ function getInitialForm(module?: MockModule | null): FormData {
 }
 
 export function ModuleForm({ module, isOpen, onClose }: ModuleFormProps) {
+  const { toast } = useToast();
+  const [isSaving, setIsSaving] = useState(false);
   // Use module?.id as key to reset form when module changes
   const initialForm = useMemo(() => getInitialForm(module), [module]);
   const [form, setForm] = useState<FormData>(initialForm);
@@ -64,10 +68,42 @@ export function ModuleForm({ module, isOpen, onClose }: ModuleFormProps) {
 
   const isEditing = !!module;
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    // TODO: Save to Supabase
-    onClose();
+    if (!form.title.trim()) return;
+
+    setIsSaving(true);
+    try {
+      let exerciseObj: Record<string, unknown> | undefined;
+      if (form.exercise_json.trim()) {
+        try {
+          exerciseObj = JSON.parse(form.exercise_json);
+        } catch {
+          toast("Format JSON des exercices invalide", "error");
+          setIsSaving(false);
+          return;
+        }
+      }
+
+      const { error } = await upsertModule({
+        id: module?.id,
+        title: form.title.trim(),
+        description: form.description || undefined,
+        content: { summary: form.content_summary },
+        exercise: exerciseObj,
+        order_index: form.order_index,
+        parcours_type: form.parcours_type,
+        price_cents: form.price * 100,
+        duration_minutes: form.duration_weeks * 7 * 24 * 60,
+      });
+      if (error) throw error;
+      toast(isEditing ? "Module mis a jour" : "Module cree avec succes", "success");
+      onClose();
+    } catch {
+      toast("Erreur lors de la sauvegarde du module", "error");
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   return (
@@ -220,12 +256,13 @@ export function ModuleForm({ module, isOpen, onClose }: ModuleFormProps) {
           </button>
           <button
             onClick={handleSubmit}
+            disabled={isSaving || !form.title.trim()}
             className={cn(
-              "px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors",
+              "px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed",
               "bg-accent hover:bg-accent/90"
             )}
           >
-            {isEditing ? "Enregistrer" : "Creer le module"}
+            {isSaving ? "Enregistrement..." : isEditing ? "Enregistrer" : "Creer le module"}
           </button>
         </div>
       </div>

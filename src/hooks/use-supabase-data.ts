@@ -779,3 +779,162 @@ export function useDirigeantDashboardStats(companyId: string | undefined) {
     };
   }, [companyId]);
 }
+
+// ============================================================
+// MUTATIONS — Insert/Update operations for admin CRUD
+// ============================================================
+
+export async function insertProfile(data: {
+  email: string;
+  first_name: string;
+  last_name: string;
+  role: "coachee" | "salarie" | "dirigeant" | "intervenant";
+  company_id?: string;
+  coaching_type?: "individuel" | "entreprise";
+}) {
+  const supabase = createUntypedClient();
+  const id = crypto.randomUUID();
+  const { data: result, error } = await supabase
+    .from("profiles")
+    .insert({
+      id,
+      email: data.email,
+      first_name: data.first_name,
+      last_name: data.last_name,
+      role: data.role,
+      company_id: data.company_id || null,
+      coaching_type: data.coaching_type || null,
+      status: "active",
+      onboarding_completed: false,
+    })
+    .select()
+    .single();
+  return { data: result as Profile | null, error };
+}
+
+export async function insertKpiScore(data: {
+  user_id: string;
+  company_id?: string;
+  investissement: number;
+  efficacite: number;
+  participation: number;
+  notes?: string;
+}) {
+  const supabase = createUntypedClient();
+  const { data: result, error } = await supabase
+    .from("kpi_scores")
+    .insert({
+      user_id: data.user_id,
+      company_id: data.company_id || null,
+      investissement: data.investissement,
+      efficacite: data.efficacite,
+      participation: data.participation,
+      notes: data.notes || null,
+      scored_at: new Date().toISOString(),
+    })
+    .select()
+    .single();
+  return { data: result as KpiScore | null, error };
+}
+
+export async function insertModuleProgress(data: {
+  user_id: string;
+  module_id: string;
+}) {
+  const supabase = createUntypedClient();
+  const { data: result, error } = await supabase
+    .from("module_progress")
+    .insert({
+      user_id: data.user_id,
+      module_id: data.module_id,
+      status: "not_started",
+    })
+    .select()
+    .single();
+  return { data: result as ModuleProgress | null, error };
+}
+
+export async function insertGroup(data: {
+  name: string;
+  type: "entreprise" | "coaching_individuel" | "general";
+  created_by: string;
+  company_id?: string;
+}) {
+  const supabase = createUntypedClient();
+  const { data: result, error } = await supabase
+    .from("groups")
+    .insert({
+      name: data.name,
+      type: data.type,
+      created_by: data.created_by,
+      company_id: data.company_id || null,
+      is_active: true,
+    })
+    .select()
+    .single();
+  return { data: result as Group | null, error };
+}
+
+export async function insertMessage(data: {
+  sender_id: string;
+  content: string;
+  group_id?: string;
+  recipient_id?: string;
+}) {
+  const supabase = createUntypedClient();
+  const { data: result, error } = await supabase
+    .from("messages")
+    .insert({
+      sender_id: data.sender_id,
+      content: data.content,
+      group_id: data.group_id || null,
+      recipient_id: data.recipient_id || null,
+      is_pinned: false,
+    })
+    .select()
+    .single();
+  return { data: result as Message | null, error };
+}
+
+export async function upsertModule(data: {
+  id?: string;
+  title: string;
+  description?: string;
+  content: Record<string, unknown>;
+  exercise?: Record<string, unknown>;
+  order_index: number;
+  parcours_type: "individuel" | "entreprise" | "les_deux";
+  price_cents: number;
+  is_free?: boolean;
+  duration_minutes?: number;
+}) {
+  const supabase = createUntypedClient();
+  const payload = {
+    title: data.title,
+    description: data.description || null,
+    content: data.content,
+    exercise: data.exercise || null,
+    order_index: data.order_index,
+    parcours_type: data.parcours_type,
+    price_cents: data.price_cents,
+    is_free: data.is_free ?? data.price_cents === 0,
+    duration_minutes: data.duration_minutes || null,
+  };
+
+  if (data.id) {
+    const { data: result, error } = await supabase
+      .from("modules")
+      .update(payload)
+      .eq("id", data.id)
+      .select()
+      .single();
+    return { data: result as Module | null, error };
+  } else {
+    const { data: result, error } = await supabase
+      .from("modules")
+      .insert(payload)
+      .select()
+      .single();
+    return { data: result as Module | null, error };
+  }
+}

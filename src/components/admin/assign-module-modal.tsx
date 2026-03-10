@@ -5,6 +5,7 @@ import { X, BookOpen, Check, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
 import { mockModules } from "@/lib/mock-data";
+import { insertModuleProgress } from "@/hooks/use-supabase-data";
 
 interface AssignModuleModalProps {
   coacheeId: string;
@@ -14,6 +15,7 @@ interface AssignModuleModalProps {
 }
 
 export function AssignModuleModal({
+  coacheeId,
   coacheeName,
   currentModules,
   onClose,
@@ -46,8 +48,13 @@ export function AssignModuleModal({
 
     setIsSaving(true);
     try {
-      // TODO: Save to Supabase module_progress table
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      const results = await Promise.all(
+        newModules.map((moduleId) =>
+          insertModuleProgress({ user_id: coacheeId, module_id: moduleId })
+        )
+      );
+      const firstError = results.find((r) => r.error);
+      if (firstError?.error) throw firstError.error;
       toast(
         `${newModules.length} module${newModules.length > 1 ? "s" : ""} attribue${newModules.length > 1 ? "s" : ""} avec succes`,
         "success"
