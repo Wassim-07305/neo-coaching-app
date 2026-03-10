@@ -6,9 +6,11 @@ import { GroupList } from "@/components/community/group-list";
 import { ChatThread } from "@/components/community/chat-thread";
 import { CreateGroupModal } from "@/components/admin/create-group-modal";
 import { MessageSquare, Loader2 } from "lucide-react";
+import { useAuth } from "@/components/providers/auth-provider";
 import { useGroups, useGroupMembers } from "@/hooks/use-supabase-data";
 
 export default function AdminCommunautePage() {
+  const { user } = useAuth();
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
 
@@ -92,7 +94,7 @@ export default function AdminCommunautePage() {
             <ChatThread
               group={activeGroup}
               isAdmin
-              currentUserId="admin"
+              currentUserId={user?.id || "admin"}
             />
           ) : (
             <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
@@ -117,7 +119,7 @@ export default function AdminCommunautePage() {
             <ChatThread
               group={activeGroup}
               isAdmin
-              currentUserId="admin"
+              currentUserId={user?.id || "admin"}
               onBack={() => setActiveGroupId(null)}
             />
           </div>
