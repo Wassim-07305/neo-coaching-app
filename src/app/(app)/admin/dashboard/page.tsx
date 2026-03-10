@@ -5,7 +5,7 @@ import { StatsBar } from "@/components/admin/stats-bar";
 import { CoacheeTable } from "@/components/admin/coachee-table";
 import { EnterpriseKpis } from "@/components/admin/enterprise-kpis";
 import { ActivityFeed } from "@/components/admin/activity-feed";
-import { useAdminDashboardStats, useProfiles, useCompanies, useModuleProgress } from "@/hooks/use-supabase-data";
+import { useAdminDashboardStats, useProfiles, useCompanies, useModuleProgress, useKpiScores } from "@/hooks/use-supabase-data";
 import { useMemo } from "react";
 import type { MockActivity } from "@/lib/mock-data";
 import { formatDistanceToNow } from "date-fns";
@@ -17,6 +17,25 @@ export default function AdminDashboardPage() {
   const { data: profiles, loading: profilesLoading } = useProfiles({ status: "active" });
   const { data: companies, loading: companiesLoading } = useCompanies();
   const { data: moduleProgressList } = useModuleProgress();
+  const { data: allKpiScores } = useKpiScores();
+
+  // Build a map of latest KPI scores per user
+  const latestKpiByUser = useMemo(() => {
+    const map: Record<string, { investissement: number; efficacite: number; participation: number }> = {};
+    if (!allKpiScores) return map;
+
+    for (const score of allKpiScores) {
+      if (!map[score.user_id]) {
+        // Scores are ordered by scored_at desc, so the first one per user is the latest
+        map[score.user_id] = {
+          investissement: score.investissement ?? 5,
+          efficacite: score.efficacite ?? 5,
+          participation: score.participation ?? 5,
+        };
+      }
+    }
+    return map;
+  }, [allKpiScores]);
 
   // Transform Supabase data to match component props
   const coachees = useMemo(() => {
@@ -27,6 +46,11 @@ export default function AdminDashboardPage() {
       .map((profile) => {
         const company = companies?.find((c) => c.id === profile.company_id);
         const userProgress = moduleProgressList?.filter((mp) => mp.user_id === profile.id) || [];
+        const userKpis = latestKpiByUser[profile.id] || {
+          investissement: 5,
+          efficacite: 5,
+          participation: 5,
+        };
 
         return {
           id: profile.id,
@@ -40,11 +64,7 @@ export default function AdminDashboardPage() {
           company_name: company?.name || null,
           start_date: profile.created_at,
           current_module: null,
-          kpis: {
-            investissement: 7,
-            efficacite: 7,
-            participation: 7,
-          },
+          kpis: userKpis,
           kpi_history: [],
           module_progress: userProgress.map((mp) => ({
             module_id: mp.module_id,
@@ -58,7 +78,7 @@ export default function AdminDashboardPage() {
           last_activity: profile.updated_at,
         };
       });
-  }, [profiles, companies, moduleProgressList]);
+  }, [profiles, companies, moduleProgressList, latestKpiByUser]);
 
   const companiesForKpi = useMemo(() => {
     if (!companies) return [];
