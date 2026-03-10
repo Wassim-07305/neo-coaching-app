@@ -185,10 +185,24 @@ export function useModule(id: string | undefined) {
 // MODULE PROGRESS
 // ============================================================================
 
-export function useModuleProgress(filters?: { user_id?: string; module_id?: string }) {
+export function useModuleProgress(filters?: { user_id?: string; module_id?: string; company_id?: string }) {
   const supabase = createUntypedClient();
 
   return useSupabaseQuery<(ModuleProgress & { module?: Module; user?: Profile })[]>(async () => {
+    // If company_id is provided, we first need to get all user IDs for that company
+    let userIds: string[] | null = null;
+    if (filters?.company_id) {
+      const employeesResult = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("company_id", filters.company_id)
+        .in("role", ["salarie", "coachee"]);
+      userIds = (employeesResult.data as { id: string }[] | null)?.map((e) => e.id) || [];
+      if (userIds.length === 0) {
+        return { data: [], error: null };
+      }
+    }
+
     let query = supabase.from("module_progress").select(`
       *,
       module:modules(*),
@@ -197,10 +211,11 @@ export function useModuleProgress(filters?: { user_id?: string; module_id?: stri
 
     if (filters?.user_id) query = query.eq("user_id", filters.user_id);
     if (filters?.module_id) query = query.eq("module_id", filters.module_id);
+    if (userIds) query = query.in("user_id", userIds);
 
     const { data, error } = await query.order("created_at", { ascending: false });
     return { data, error };
-  }, [filters?.user_id, filters?.module_id]);
+  }, [filters?.user_id, filters?.module_id, filters?.company_id]);
 }
 
 export function useUserModuleProgress(userId: string | undefined) {
