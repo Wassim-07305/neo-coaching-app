@@ -67,25 +67,71 @@ export function InviteEmployeeModal({
     }
 
     setIsSending(true);
+    const createdEmployees: { email: string; first_name: string; last_name: string; tempPassword?: string }[] = [];
+    const errors: string[] = [];
+
     try {
-      // TODO: Send invitations via Supabase
-      // 1. Create user accounts with role 'salarie' and company_id
-      // 2. Send magic link or invitation email
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Create each employee via the API
+      for (const row of validInvitees) {
+        try {
+          const response = await fetch("/api/companies", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "addEmployee",
+              companyId,
+              email: row.email.trim(),
+              firstName: row.firstName.trim() || row.email.split("@")[0],
+              lastName: row.lastName.trim() || "",
+              role: "salarie",
+              sendInvite: true,
+            }),
+          });
 
-      toast(
-        `${validInvitees.length} invitation${validInvitees.length > 1 ? "s" : ""} envoyee${validInvitees.length > 1 ? "s" : ""} avec succes`,
-        "success"
-      );
+          const result = await response.json();
 
-      onInvited?.(
-        validInvitees.map((row) => ({
-          email: row.email,
-          first_name: row.firstName,
-          last_name: row.lastName,
-        }))
-      );
-      onClose();
+          if (!response.ok || !result.success) {
+            errors.push(`${row.email}: ${result.error || "Erreur inconnue"}`);
+          } else {
+            createdEmployees.push({
+              email: row.email,
+              first_name: row.firstName || row.email.split("@")[0],
+              last_name: row.lastName || "",
+              tempPassword: result.data?.tempPassword,
+            });
+          }
+        } catch {
+          errors.push(`${row.email}: Erreur de connexion`);
+        }
+      }
+
+      // Show results
+      if (createdEmployees.length > 0) {
+        const tempPasswords = createdEmployees
+          .filter((e) => e.tempPassword)
+          .map((e) => `${e.email}: ${e.tempPassword}`)
+          .join("\n");
+
+        toast(
+          `${createdEmployees.length} compte${createdEmployees.length > 1 ? "s" : ""} cree${createdEmployees.length > 1 ? "s" : ""} avec succes.${tempPasswords ? ` Mots de passe temporaires affiches dans la console.` : ""}`,
+          "success"
+        );
+
+        // Log temp passwords to console for admin to copy
+        if (tempPasswords) {
+          console.log("Mots de passe temporaires:\n" + tempPasswords);
+        }
+
+        onInvited?.(createdEmployees);
+      }
+
+      if (errors.length > 0) {
+        toast(`Erreurs: ${errors.join(", ")}`, "error");
+      }
+
+      if (createdEmployees.length > 0) {
+        onClose();
+      }
     } catch {
       toast("Erreur lors de l'envoi des invitations", "error");
     } finally {
