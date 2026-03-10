@@ -828,6 +828,20 @@ export async function insertProfile(data: {
   return { data: result as Profile | null, error };
 }
 
+export async function updateProfile(
+  id: string,
+  data: { first_name?: string; last_name?: string; phone?: string; avatar_url?: string }
+) {
+  const supabase = createUntypedClient();
+  const { data: result, error } = await supabase
+    .from("profiles")
+    .update(data)
+    .eq("id", id)
+    .select()
+    .single();
+  return { data: result as Profile | null, error };
+}
+
 export async function insertKpiScore(data: {
   user_id: string;
   company_id?: string;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   User,
   Mail,
@@ -13,44 +13,111 @@ import {
   Save,
   Check,
   Briefcase,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { KpiGauge } from "@/components/ui/kpi-gauge";
-
-// ---------- Mock user data ----------
-const mockUser = {
-  firstName: "Marie",
-  lastName: "Dupont",
-  email: "marie.dupont@email.fr",
-  phone: "06 12 34 56 78",
-  role: "salarie" as const,
-  companyName: "Alpha Corp",
-  jobTitle: "Responsable Marketing",
-  startDate: "2025-09-15",
-  kpis: { investissement: 8, efficacite: 7, participation: 9 },
-  completionRate: 50,
-  modulesCompleted: 2,
-  totalModules: 4,
-};
+import { useAuth } from "@/components/providers/auth-provider";
+import { useCompany, useLatestKpiScore, useUserModuleProgress, updateProfile } from "@/hooks/use-supabase-data";
+import { useToast } from "@/components/ui/toast";
+import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
+import { format } from "date-fns";
+import { fr } from "date-fns/locale";
 
 export default function SalarieProfilPage() {
-  const [firstName, setFirstName] = useState(mockUser.firstName);
-  const [lastName, setLastName] = useState(mockUser.lastName);
-  const [phone, setPhone] = useState(mockUser.phone);
+  const { user, profile, loading: authLoading } = useAuth();
+  const { toast } = useToast();
+  const router = useRouter();
+  const supabase = createClient();
+
+  const { data: company } = useCompany(profile?.company_id || undefined);
+  const { data: latestKpi } = useLatestKpiScore(user?.id);
+  const { data: moduleProgress } = useUserModuleProgress(user?.id);
+
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [phone, setPhone] = useState("");
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  function handleSave() {
+  // Sync form fields when profile loads
+  useEffect(() => {
+    if (profile) {
+      setFirstName(profile.first_name || "");
+      setLastName(profile.last_name || "");
+      setPhone(profile.phone || "");
+    }
+  }, [profile]);
+
+  const kpis = useMemo(() => {
+    if (latestKpi) {
+      return {
+        investissement: latestKpi.investissement,
+        efficacite: latestKpi.efficacite,
+        participation: latestKpi.participation,
+      };
+    }
+    return { investissement: 7, efficacite: 7, participation: 7 };
+  }, [latestKpi]);
+
+  const { completedModules, totalModules, completionRate } = useMemo(() => {
+    if (moduleProgress && moduleProgress.length > 0) {
+      const completed = moduleProgress.filter((mp) => mp.status === "validated").length;
+      const total = moduleProgress.length;
+      return {
+        completedModules: completed,
+        totalModules: total,
+        completionRate: total > 0 ? Math.round((completed / total) * 100) : 0,
+      };
+    }
+    return { completedModules: 0, totalModules: 0, completionRate: 0 };
+  }, [moduleProgress]);
+
+  async function handleSave() {
+    if (!user?.id) return;
+
     setSaving(true);
-    // Simulate save
-    setTimeout(() => {
+    try {
+      const { error } = await updateProfile(user.id, {
+        first_name: firstName,
+        last_name: lastName,
+        phone: phone || undefined,
+      });
+
+      if (error) {
+        toast("Erreur lors de la sauvegarde", "error");
+      } else {
+        setSaved(true);
+        toast("Profil mis a jour avec succes", "success");
+        setTimeout(() => setSaved(false), 2000);
+      }
+    } catch {
+      toast("Erreur lors de la sauvegarde", "error");
+    } finally {
       setSaving(false);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-    }, 800);
+    }
   }
 
-  const initials = `${firstName[0] || ""}${lastName[0] || ""}`;
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    router.push("/connexion");
+  }
+
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-accent" />
+      </div>
+    );
+  }
+
+  const email = profile?.email || user?.email || "";
+  const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+  const companyName = company?.name || "Entreprise";
+  const startDate = profile?.created_at
+    ? format(new Date(profile.created_at), "d MMMM yyyy", { locale: fr })
+    : "-";
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -65,7 +132,6 @@ export default function SalarieProfilPage() {
       {/* Profile header card */}
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5">
-          {/* Avatar */}
           <div className="relative">
             <div className="w-20 h-20 rounded-full bg-primary flex items-center justify-center text-2xl font-bold text-white">
               {initials}
@@ -82,7 +148,7 @@ export default function SalarieProfilPage() {
             <h2 className="text-xl font-bold text-dark">
               {firstName} {lastName}
             </h2>
-            <p className="text-sm text-gray-500 mt-0.5">{mockUser.email}</p>
+            <p className="text-sm text-gray-500 mt-0.5">{email}</p>
             <div className="flex flex-wrap justify-center sm:justify-start gap-2 mt-3">
               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary">
                 <Briefcase className="w-3 h-3" />
@@ -90,7 +156,7 @@ export default function SalarieProfilPage() {
               </span>
               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-accent/10 text-accent">
                 <Building2 className="w-3 h-3" />
-                {mockUser.companyName}
+                {companyName}
               </span>
             </div>
           </div>
@@ -153,7 +219,7 @@ export default function SalarieProfilPage() {
               <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="email"
-                value={mockUser.email}
+                value={email}
                 disabled
                 className="w-full pl-9 pr-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-gray-50 text-gray-500 cursor-not-allowed"
               />
@@ -161,7 +227,6 @@ export default function SalarieProfilPage() {
           </div>
         </div>
 
-        {/* Avatar upload placeholder */}
         <div className="mt-4">
           <label className="block text-xs font-medium text-gray-500 mb-1.5">
             Photo de profil
@@ -187,34 +252,24 @@ export default function SalarieProfilPage() {
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
-            <p className="text-xs font-medium text-gray-500 mb-1">
-              Entreprise
-            </p>
+            <p className="text-xs font-medium text-gray-500 mb-1">Entreprise</p>
             <div className="flex items-center gap-2">
               <Building2 className="w-4 h-4 text-gray-400" />
-              <span className="text-sm font-medium text-dark">
-                {mockUser.companyName}
-              </span>
+              <span className="text-sm font-medium text-dark">{companyName}</span>
             </div>
           </div>
           <div>
-            <p className="text-xs font-medium text-gray-500 mb-1">Poste</p>
+            <p className="text-xs font-medium text-gray-500 mb-1">Role</p>
             <div className="flex items-center gap-2">
               <Briefcase className="w-4 h-4 text-gray-400" />
-              <span className="text-sm font-medium text-dark">
-                {mockUser.jobTitle}
-              </span>
+              <span className="text-sm font-medium text-dark">Salarie</span>
             </div>
           </div>
           <div>
-            <p className="text-xs font-medium text-gray-500 mb-1">
-              Date de debut
-            </p>
+            <p className="text-xs font-medium text-gray-500 mb-1">Date de debut</p>
             <div className="flex items-center gap-2">
               <Calendar className="w-4 h-4 text-gray-400" />
-              <span className="text-sm font-medium text-dark">
-                {mockUser.startDate}
-              </span>
+              <span className="text-sm font-medium text-dark">{startDate}</span>
             </div>
           </div>
         </div>
@@ -226,26 +281,12 @@ export default function SalarieProfilPage() {
           Mes statistiques
         </h3>
         <div className="flex flex-col sm:flex-row items-center gap-6">
-          {/* KPI Gauges */}
           <div className="flex gap-4">
-            <KpiGauge
-              value={mockUser.kpis.investissement}
-              label="Investissement"
-              size="sm"
-            />
-            <KpiGauge
-              value={mockUser.kpis.efficacite}
-              label="Efficacite"
-              size="sm"
-            />
-            <KpiGauge
-              value={mockUser.kpis.participation}
-              label="Participation"
-              size="sm"
-            />
+            <KpiGauge value={kpis.investissement} label="Investissement" size="sm" />
+            <KpiGauge value={kpis.efficacite} label="Efficacite" size="sm" />
+            <KpiGauge value={kpis.participation} label="Participation" size="sm" />
           </div>
 
-          {/* Completion rate */}
           <div className="flex-1 w-full sm:w-auto">
             <p className="text-xs font-medium text-gray-500 mb-2 text-center sm:text-left">
               Progression globale
@@ -254,16 +295,13 @@ export default function SalarieProfilPage() {
               <div className="flex-1 h-3 bg-gray-100 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-accent rounded-full transition-all"
-                  style={{ width: `${mockUser.completionRate}%` }}
+                  style={{ width: `${completionRate}%` }}
                 />
               </div>
-              <span className="text-sm font-bold text-dark">
-                {mockUser.completionRate}%
-              </span>
+              <span className="text-sm font-bold text-dark">{completionRate}%</span>
             </div>
             <p className="text-xs text-gray-500 mt-1 text-center sm:text-left">
-              {mockUser.modulesCompleted}/{mockUser.totalModules} modules
-              termines
+              {completedModules}/{totalModules} modules termines
             </p>
           </div>
         </div>
@@ -279,7 +317,10 @@ export default function SalarieProfilPage() {
             <Lock className="w-4 h-4 text-gray-500" />
             Changer le mot de passe
           </button>
-          <button className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-danger/20 text-sm font-medium text-danger hover:bg-danger/5 transition-colors">
+          <button
+            onClick={handleLogout}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-danger/20 text-sm font-medium text-danger hover:bg-danger/5 transition-colors"
+          >
             <LogOut className="w-4 h-4" />
             Se deconnecter
           </button>
