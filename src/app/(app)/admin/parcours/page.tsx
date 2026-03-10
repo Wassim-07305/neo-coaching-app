@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { format, differenceInDays, isPast } from "date-fns";
 import { fr } from "date-fns/locale";
 import {
@@ -16,27 +16,93 @@ import {
   Search,
   Filter,
   MoreVertical,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   getAllAssignedParcours,
   getParcoursStats,
   parcoursStatusConfig,
-  type AssignedParcours,
+  type AssignedParcours as MockAssignedParcours,
   type ParcoursStatus,
 } from "@/lib/mock-data-parcours";
 import { AssignParcoursModal } from "@/components/admin/assign-parcours-modal";
+import { useAssignedParcours, useParcoursStats } from "@/hooks/use-supabase-data";
 
 type FilterStatus = "all" | ParcoursStatus;
+
+// Unified display type for both Supabase and mock data
+interface DisplayParcours {
+  id: string;
+  title: string;
+  assignedToName: string;
+  companyName?: string;
+  startDate: string;
+  endDate: string;
+  status: ParcoursStatus;
+  progress: number;
+  modules: { moduleId: string; moduleTitle: string; status: string; deadline?: string; completedAt?: string }[];
+}
 
 export default function ParcoursPage() {
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
   const [showAssignModal, setShowAssignModal] = useState(false);
-  const [selectedParcours, setSelectedParcours] = useState<AssignedParcours | null>(null);
+  const [selectedParcours, setSelectedParcours] = useState<DisplayParcours | null>(null);
 
-  const allParcours = getAllAssignedParcours();
-  const stats = getParcoursStats();
+  // Fetch real data
+  const { data: supabaseParcours, loading: parcoursLoading } = useAssignedParcours();
+  const { data: supabaseStats, loading: statsLoading } = useParcoursStats();
+
+  // Mock fallback
+  const mockParcours = getAllAssignedParcours();
+  const mockStats = getParcoursStats();
+
+  // Transform to unified display format
+  const allParcours = useMemo((): DisplayParcours[] => {
+    if (supabaseParcours && supabaseParcours.length > 0) {
+      return supabaseParcours.map((p) => ({
+        id: p.id,
+        title: p.title,
+        assignedToName: p.assigned_user
+          ? `${p.assigned_user.first_name} ${p.assigned_user.last_name}`
+          : "Utilisateur",
+        companyName: p.company?.name || undefined,
+        startDate: p.start_date,
+        endDate: p.end_date,
+        status: p.status,
+        progress: p.progress,
+        modules: [], // Modules loaded on detail view
+      }));
+    }
+    return mockParcours.map((p) => ({
+      id: p.id,
+      title: p.title,
+      assignedToName: p.assignedToName,
+      companyName: p.companyName,
+      startDate: p.startDate,
+      endDate: p.endDate,
+      status: p.status,
+      progress: p.progress,
+      modules: p.modules.map((m) => ({
+        moduleId: m.moduleId,
+        moduleTitle: m.moduleTitle,
+        status: m.status,
+        deadline: m.deadline,
+        completedAt: m.completedAt,
+      })),
+    }));
+  }, [supabaseParcours, mockParcours]);
+
+  const stats = supabaseStats
+    ? {
+        total: supabaseStats.total,
+        inProgress: supabaseStats.in_progress,
+        completed: supabaseStats.completed,
+        overdue: supabaseStats.overdue,
+        avgProgress: supabaseStats.avg_progress,
+      }
+    : mockStats;
 
   const filteredParcours = allParcours.filter((p) => {
     const matchesSearch =
@@ -47,6 +113,16 @@ export default function ParcoursPage() {
     const matchesStatus = filterStatus === "all" || p.status === filterStatus;
     return matchesSearch && matchesStatus;
   });
+
+  const isLoading = parcoursLoading || statsLoading;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-accent" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -216,7 +292,7 @@ function ParcoursCard({
   parcours,
   onClick,
 }: {
-  parcours: AssignedParcours;
+  parcours: DisplayParcours;
   onClick: () => void;
 }) {
   const statusConfig = parcoursStatusConfig[parcours.status];
@@ -301,9 +377,11 @@ function ParcoursCard({
       </div>
 
       <div className="flex items-center gap-2 shrink-0">
-        <span className="text-xs text-gray-400">
-          {parcours.modules.filter((m) => m.status === "completed").length}/{parcours.modules.length} modules
-        </span>
+        {parcours.modules.length > 0 && (
+          <span className="text-xs text-gray-400">
+            {parcours.modules.filter((m) => m.status === "completed").length}/{parcours.modules.length} modules
+          </span>
+        )}
         <ChevronRight className="w-4 h-4 text-gray-400" />
       </div>
     </div>
@@ -315,7 +393,7 @@ function ParcoursDetailModal({
   parcours,
   onClose,
 }: {
-  parcours: AssignedParcours;
+  parcours: DisplayParcours;
   onClose: () => void;
 }) {
   const statusConfig = parcoursStatusConfig[parcours.status];
@@ -416,78 +494,80 @@ function ParcoursDetailModal({
           </div>
 
           {/* Modules */}
-          <div>
-            <h3 className="text-sm font-medium text-gray-700 mb-3">
-              Modules ({parcours.modules.filter((m) => m.status === "completed").length}/{parcours.modules.length})
-            </h3>
-            <div className="space-y-2">
-              {parcours.modules.map((mod, idx) => (
-                <div
-                  key={mod.moduleId}
-                  className={cn(
-                    "flex items-center justify-between p-3 rounded-xl border",
-                    mod.status === "completed"
-                      ? "bg-success/5 border-success/20"
-                      : mod.status === "in_progress"
-                      ? "bg-blue-50 border-blue-200"
-                      : mod.status === "available"
-                      ? "bg-white border-gray-200"
-                      : "bg-gray-50 border-gray-100 opacity-60"
-                  )}
-                >
-                  <div className="flex items-center gap-3">
-                    <span
-                      className={cn(
-                        "w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold",
-                        mod.status === "completed"
-                          ? "bg-success text-white"
-                          : mod.status === "in_progress"
-                          ? "bg-blue-500 text-white"
-                          : "bg-gray-200 text-gray-500"
-                      )}
-                    >
-                      {mod.status === "completed" ? "✓" : idx + 1}
-                    </span>
-                    <div>
-                      <p className="text-sm font-medium text-dark">
-                        {mod.moduleTitle}
-                      </p>
-                      {mod.deadline && (
-                        <p className="text-xs text-gray-500">
-                          Deadline: {format(new Date(mod.deadline), "d MMM", { locale: fr })}
-                          {mod.completedAt && (
-                            <span className="text-success ml-2">
-                              (termine le {format(new Date(mod.completedAt), "d MMM", { locale: fr })})
-                            </span>
-                          )}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <span
+          {parcours.modules.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 mb-3">
+                Modules ({parcours.modules.filter((m) => m.status === "completed").length}/{parcours.modules.length})
+              </h3>
+              <div className="space-y-2">
+                {parcours.modules.map((mod, idx) => (
+                  <div
+                    key={mod.moduleId}
                     className={cn(
-                      "text-[10px] px-2 py-0.5 rounded-full font-medium",
+                      "flex items-center justify-between p-3 rounded-xl border",
                       mod.status === "completed"
-                        ? "bg-success/10 text-success"
+                        ? "bg-success/5 border-success/20"
                         : mod.status === "in_progress"
-                        ? "bg-blue-100 text-blue-700"
+                        ? "bg-blue-50 border-blue-200"
                         : mod.status === "available"
-                        ? "bg-gray-100 text-gray-600"
-                        : "bg-gray-100 text-gray-400"
+                        ? "bg-white border-gray-200"
+                        : "bg-gray-50 border-gray-100 opacity-60"
                     )}
                   >
-                    {mod.status === "completed"
-                      ? "Termine"
-                      : mod.status === "in_progress"
-                      ? "En cours"
-                      : mod.status === "available"
-                      ? "Disponible"
-                      : "Verrouille"}
-                  </span>
-                </div>
-              ))}
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={cn(
+                          "w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold",
+                          mod.status === "completed"
+                            ? "bg-success text-white"
+                            : mod.status === "in_progress"
+                            ? "bg-blue-500 text-white"
+                            : "bg-gray-200 text-gray-500"
+                        )}
+                      >
+                        {mod.status === "completed" ? "\u2713" : idx + 1}
+                      </span>
+                      <div>
+                        <p className="text-sm font-medium text-dark">
+                          {mod.moduleTitle}
+                        </p>
+                        {mod.deadline && (
+                          <p className="text-xs text-gray-500">
+                            Deadline: {format(new Date(mod.deadline), "d MMM", { locale: fr })}
+                            {mod.completedAt && (
+                              <span className="text-success ml-2">
+                                (termine le {format(new Date(mod.completedAt), "d MMM", { locale: fr })})
+                              </span>
+                            )}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <span
+                      className={cn(
+                        "text-[10px] px-2 py-0.5 rounded-full font-medium",
+                        mod.status === "completed"
+                          ? "bg-success/10 text-success"
+                          : mod.status === "in_progress"
+                          ? "bg-blue-100 text-blue-700"
+                          : mod.status === "available"
+                          ? "bg-gray-100 text-gray-600"
+                          : "bg-gray-100 text-gray-400"
+                      )}
+                    >
+                      {mod.status === "completed"
+                        ? "Termine"
+                        : mod.status === "in_progress"
+                        ? "En cours"
+                        : mod.status === "available"
+                        ? "Disponible"
+                        : "Verrouille"}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Footer */}
