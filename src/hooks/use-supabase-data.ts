@@ -694,6 +694,32 @@ export function useIntervenant(id: string | undefined) {
   }, [id]);
 }
 
+export function useIntervenantByUserId(userId: string | undefined) {
+  const supabase = createUntypedClient();
+
+  return useSupabaseQuery<Intervenant>(async () => {
+    if (!userId) return { data: null, error: null };
+    const { data, error } = await supabase
+      .from("intervenants")
+      .select("*")
+      .eq("user_id", userId)
+      .single();
+    return { data, error };
+  }, [userId]);
+}
+
+export async function updateIntervenant(
+  intervenantId: string,
+  data: { bio?: string; domain?: string; video_url?: string; hourly_rate_cents?: number }
+) {
+  const supabase = createUntypedClient();
+  const { error } = await supabase
+    .from("intervenants")
+    .update(data)
+    .eq("id", intervenantId);
+  return { error };
+}
+
 // ============================================================================
 // DASHBOARD STATS
 // ============================================================================
