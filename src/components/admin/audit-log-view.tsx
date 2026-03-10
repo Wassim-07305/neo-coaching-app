@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Shield, Search, Download } from "lucide-react";
-import { getAuditLog, actionLabels, type AuditAction } from "@/lib/audit-log";
+import { actionLabels, type AuditAction, type AuditEntry } from "@/lib/audit-log";
 import { cn } from "@/lib/utils";
 
 const actionColors: Record<string, string> = {
@@ -27,18 +27,35 @@ const actionColors: Record<string, string> = {
 export function AuditLogView() {
   const [filter, setFilter] = useState<AuditAction | "">("");
   const [search, setSearch] = useState("");
+  const [entries, setEntries] = useState<AuditEntry[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const entries = getAuditLog({
-    action: filter || undefined,
-    limit: 50,
-  });
+  const fetchLogs = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (filter) params.set("action", filter);
+      params.set("limit", "50");
+      const res = await fetch(`/api/audit-logs?${params}`);
+      if (res.ok) {
+        setEntries(await res.json());
+      }
+    } catch {
+      setEntries([]);
+    }
+    setLoading(false);
+  }, [filter]);
+
+  useEffect(() => {
+    fetchLogs();
+  }, [fetchLogs]);
 
   const filtered = search
     ? entries.filter(
         (e) =>
-          e.userName.toLowerCase().includes(search.toLowerCase()) ||
-          e.detail?.toLowerCase().includes(search.toLowerCase()) ||
-          e.targetName?.toLowerCase().includes(search.toLowerCase())
+          e.action.toLowerCase().includes(search.toLowerCase()) ||
+          e.targetType?.toLowerCase().includes(search.toLowerCase()) ||
+          e.userId.toLowerCase().includes(search.toLowerCase())
       )
     : entries;
 
@@ -80,7 +97,11 @@ export function AuditLogView() {
       </div>
 
       <div className="space-y-2">
-        {filtered.length === 0 ? (
+        {loading ? (
+          <p className="py-8 text-center text-sm text-gray-400">
+            Chargement...
+          </p>
+        ) : filtered.length === 0 ? (
           <p className="py-8 text-center text-sm text-gray-400">
             Aucune entree trouvee
           </p>
@@ -100,21 +121,17 @@ export function AuditLogView() {
               </span>
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-gray-700">
-                  <span className="font-medium">{entry.userName}</span>
-                  {entry.targetName && (
+                  <span className="font-medium">{entry.userId}</span>
+                  {entry.targetType && (
                     <span className="text-gray-500">
-                      {" → "}{entry.targetName}
+                      {" → "}{entry.targetType}
+                      {entry.targetId && ` (${entry.targetId.slice(0, 8)}…)`}
                     </span>
                   )}
                 </p>
-                {entry.detail && (
-                  <p className="text-xs text-gray-400 mt-0.5 truncate">
-                    {entry.detail}
-                  </p>
-                )}
               </div>
               <span className="shrink-0 text-[10px] text-gray-400">
-                {new Date(entry.timestamp).toLocaleString("fr-FR", {
+                {new Date(entry.createdAt).toLocaleString("fr-FR", {
                   day: "2-digit",
                   month: "2-digit",
                   hour: "2-digit",

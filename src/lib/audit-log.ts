@@ -1,4 +1,6 @@
-// Audit log system (F36d)
+// Audit log system (F36d) – Supabase-backed
+
+import { createClient } from "@supabase/supabase-js";
 
 export type AuditAction =
   | "user_login"
@@ -20,61 +22,106 @@ export type AuditAction =
 
 export interface AuditEntry {
   id: string;
-  action: AuditAction;
   userId: string;
-  userName: string;
+  action: AuditAction;
   targetType?: string;
   targetId?: string;
-  targetName?: string;
-  detail?: string;
-  before?: Record<string, unknown>;
-  after?: Record<string, unknown>;
-  timestamp: string;
-  ip?: string;
+  beforeData?: Record<string, unknown>;
+  afterData?: Record<string, unknown>;
+  ipAddress?: string;
+  createdAt: string;
 }
 
-// In-memory store for demo. Replace with Supabase table in production.
-const auditStore: AuditEntry[] = [];
+function getSupabaseAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    throw new Error("Supabase credentials not configured for audit logging");
+  }
+  return createClient(url, key);
+}
 
-let counter = 0;
-
-export function logAudit(
-  entry: Omit<AuditEntry, "id" | "timestamp">
-): AuditEntry {
-  const full: AuditEntry = {
-    ...entry,
-    id: `audit-${++counter}`,
-    timestamp: new Date().toISOString(),
+function rowToEntry(row: Record<string, unknown>): AuditEntry {
+  return {
+    id: row.id as string,
+    userId: row.user_id as string,
+    action: row.action as AuditAction,
+    targetType: row.target_type as string | undefined,
+    targetId: row.target_id as string | undefined,
+    beforeData: row.before_data as Record<string, unknown> | undefined,
+    afterData: row.after_data as Record<string, unknown> | undefined,
+    ipAddress: row.ip_address as string | undefined,
+    createdAt: row.created_at as string,
   };
-  auditStore.unshift(full);
-  // Keep max 1000 entries in memory
-  if (auditStore.length > 1000) auditStore.pop();
-  return full;
 }
 
-export function getAuditLog(filters?: {
+export async function logAudit(
+  entry: Omit<AuditEntry, "id" | "createdAt">
+): Promise<AuditEntry> {
+  const supabase = getSupabaseAdmin();
+
+  const { data, error } = await supabase
+    .from("audit_logs")
+    .insert({
+      user_id: entry.userId,
+      action: entry.action,
+      target_type: entry.targetType || null,
+      target_id: entry.targetId || null,
+      before_data: entry.beforeData || null,
+      after_data: entry.afterData || null,
+      ip_address: entry.ipAddress || null,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Failed to insert audit log:", error);
+    return {
+      ...entry,
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+    };
+  }
+
+  return rowToEntry(data);
+}
+
+export async function getAuditLog(filters?: {
   action?: AuditAction;
   userId?: string;
   from?: string;
   to?: string;
   limit?: number;
-}): AuditEntry[] {
-  let results = [...auditStore];
+}): Promise<AuditEntry[]> {
+  const supabase = getSupabaseAdmin();
+
+  let query = supabase
+    .from("audit_logs")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(filters?.limit || 50);
 
   if (filters?.action) {
-    results = results.filter((e) => e.action === filters.action);
+    query = query.eq("action", filters.action);
   }
   if (filters?.userId) {
-    results = results.filter((e) => e.userId === filters.userId);
+    query = query.eq("user_id", filters.userId);
   }
   if (filters?.from) {
-    results = results.filter((e) => e.timestamp >= filters.from!);
+    query = query.gte("created_at", filters.from);
   }
   if (filters?.to) {
-    results = results.filter((e) => e.timestamp <= filters.to!);
+    query = query.lte("created_at", filters.to);
   }
 
-  return results.slice(0, filters?.limit || 50);
+  const { data, error } = await query;
+
+  if (error) {
+    console.error("Failed to fetch audit logs:", error);
+    return [];
+  }
+
+  return (data || []).map(rowToEntry);
 }
 
 export const actionLabels: Record<AuditAction, string> = {
@@ -95,20 +142,3 @@ export const actionLabels: Record<AuditAction, string> = {
   data_exported: "Export de donnees",
   csv_imported: "Import CSV",
 };
-
-// Seed some demo entries
-[
-  { action: "user_login" as const, userName: "Jean-Claude YEKPE", detail: "Connexion admin" },
-  { action: "module_assigned" as const, userName: "Jean-Claude YEKPE", targetName: "Marie Dupont", detail: "Module: Confiance en soi" },
-  { action: "kpi_manual_override" as const, userName: "Jean-Claude YEKPE", targetName: "Pierre Leclerc", detail: "Investissement: 4 → 3 (decrochage observe)" },
-  { action: "report_generated" as const, userName: "Systeme", detail: "Rapport mensuel Alpha Corp - Fevrier 2026" },
-  { action: "rdv_created" as const, userName: "Jean-Claude YEKPE", targetName: "Laura Chevalier", detail: "Decouverte - 27/02 09:00" },
-  { action: "csv_imported" as const, userName: "Jean-Claude YEKPE", detail: "4 salaries importes pour Alpha Corp" },
-  { action: "message_deleted" as const, userName: "Jean-Claude YEKPE", targetName: "Communaute Alpha Corp", detail: "Message inapproprie supprime" },
-  { action: "data_exported" as const, userName: "Jean-Claude YEKPE", detail: "Export CSV coachees" },
-].forEach((entry) => {
-  logAudit({
-    ...entry,
-    userId: "admin-1",
-  });
-});
