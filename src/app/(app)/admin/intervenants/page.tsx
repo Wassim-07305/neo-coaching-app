@@ -14,6 +14,7 @@ import {
   Mail,
   Globe,
   DollarSign,
+  Download,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
@@ -138,6 +139,37 @@ export default function AdminIntervenantsPage() {
     setShowModal(true);
   }
 
+  function exportToCSV() {
+    if (intervenants.length === 0) {
+      toast("Aucun intervenant a exporter", "warning");
+      return;
+    }
+
+    const headers = ["Nom", "Prenom", "Email", "Domaine", "Taux horaire (EUR)", "Actif", "Packages"];
+    const rows = filtered.map((i) => [
+      i.user?.last_name || "",
+      i.user?.first_name || "",
+      i.user?.email || "",
+      i.domain,
+      (i.hourly_rate_cents / 100).toFixed(2),
+      i.is_active ? "Oui" : "Non",
+      i.packages ? Object.entries(i.packages).map(([k, v]) => `${k}: ${typeof v === "number" ? (v / 100).toFixed(2) : v}EUR`).join(" | ") : "",
+    ]);
+
+    const csvContent = [headers, ...rows]
+      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+
+    const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `intervenants-${new Date().toISOString().split("T")[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast("Export CSV telecharge", "success");
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -159,13 +191,23 @@ export default function AdminIntervenantsPage() {
             </p>
           </div>
         </div>
-        <button
-          onClick={handleAdd}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-accent hover:bg-accent/90 text-white rounded-lg font-medium transition-colors text-sm"
-        >
-          <Plus className="w-4 h-4" />
-          Ajouter un intervenant
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={exportToCSV}
+            disabled={filtered.length === 0}
+            className="inline-flex items-center gap-2 px-3 py-2 border border-gray-200 text-gray-600 rounded-lg font-medium text-sm hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Download className="w-4 h-4" />
+            <span className="hidden sm:inline">Exporter</span>
+          </button>
+          <button
+            onClick={handleAdd}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-accent hover:bg-accent/90 text-white rounded-lg font-medium transition-colors text-sm"
+          >
+            <Plus className="w-4 h-4" />
+            Ajouter un intervenant
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
