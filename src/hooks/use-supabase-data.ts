@@ -984,6 +984,67 @@ export async function updateAppointmentStatus(
 }
 
 // ============================================================
+// INTERVENANT MUTATIONS
+// ============================================================
+
+export async function upsertIntervenant(data: {
+  id?: string;
+  user_id: string;
+  domain: string;
+  bio?: string;
+  video_url?: string;
+  hourly_rate_cents: number;
+  packages?: Record<string, unknown>;
+  is_active?: boolean;
+}) {
+  const supabase = createUntypedClient();
+  const payload = {
+    user_id: data.user_id,
+    domain: data.domain,
+    bio: data.bio || null,
+    video_url: data.video_url || null,
+    hourly_rate_cents: data.hourly_rate_cents,
+    packages: data.packages || {},
+    is_active: data.is_active ?? true,
+  };
+
+  if (data.id) {
+    const { data: result, error } = await supabase
+      .from("intervenants")
+      .update(payload)
+      .eq("id", data.id)
+      .select(`*, user:profiles(*)`)
+      .single();
+    return { data: result as (Intervenant & { user: Profile }) | null, error };
+  } else {
+    const { data: result, error } = await supabase
+      .from("intervenants")
+      .insert(payload)
+      .select(`*, user:profiles(*)`)
+      .single();
+    return { data: result as (Intervenant & { user: Profile }) | null, error };
+  }
+}
+
+export async function toggleIntervenantActive(id: string, isActive: boolean) {
+  const supabase = createUntypedClient();
+  const { error } = await supabase
+    .from("intervenants")
+    .update({ is_active: isActive })
+    .eq("id", id);
+  return { error };
+}
+
+export async function deleteIntervenant(id: string) {
+  const supabase = createUntypedClient();
+  const { error } = await supabase
+    .from("intervenants")
+    .delete()
+    .eq("id", id);
+  return { error };
+}
+
+// ============================================================
 // INVITATION TOKENS
 // ============================================================
 
