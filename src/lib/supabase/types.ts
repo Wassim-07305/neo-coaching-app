@@ -302,6 +302,22 @@ export interface CalendlyBooking {
   created_at: string;
 }
 
+export type InvitationTokenStatus = "pending" | "accepted" | "expired" | "revoked";
+
+export interface InvitationToken {
+  id: string;
+  token: string;
+  company_id: string;
+  created_by: string;
+  email: string | null;
+  role: UserRole;
+  status: InvitationTokenStatus;
+  expires_at: string;
+  accepted_by: string | null;
+  accepted_at: string | null;
+  created_at: string;
+}
+
 // Supabase Database type for typed queries
 export type Database = {
   public: {
@@ -415,6 +431,11 @@ export type Database = {
         Row: CalendlyBooking;
         Insert: Partial<CalendlyBooking> & Pick<CalendlyBooking, "calendly_event_id" | "user_id" | "event_type" | "start_time" | "end_time">;
         Update: Partial<CalendlyBooking>;
+      };
+      invitation_tokens: {
+        Row: InvitationToken;
+        Insert: Partial<InvitationToken> & Pick<InvitationToken, "token" | "company_id" | "created_by" | "role" | "expires_at">;
+        Update: Partial<InvitationToken>;
       };
     };
   };

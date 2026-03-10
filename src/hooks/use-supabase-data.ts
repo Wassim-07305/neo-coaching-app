@@ -24,6 +24,7 @@ import type {
   CalendlyBooking,
   Intervenant,
   BookingFormSubmission,
+  InvitationToken,
 } from "@/lib/supabase/types";
 
 // Generic hook for fetching data
@@ -965,4 +966,77 @@ export async function updateAppointmentStatus(
     .select()
     .single();
   return { data: result as Appointment | null, error };
+}
+
+// ============================================================
+// INVITATION TOKENS
+// ============================================================
+
+export async function createInvitationToken(data: {
+  company_id: string;
+  created_by: string;
+  email?: string;
+  role?: "salarie" | "dirigeant" | "coachee" | "intervenant";
+  expires_in_days?: number;
+}) {
+  const supabase = createUntypedClient();
+  const token = crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "").slice(0, 16);
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + (data.expires_in_days || 30));
+
+  const { data: result, error } = await supabase
+    .from("invitation_tokens")
+    .insert({
+      token,
+      company_id: data.company_id,
+      created_by: data.created_by,
+      email: data.email || null,
+      role: data.role || "salarie",
+      status: "pending",
+      expires_at: expiresAt.toISOString(),
+    })
+    .select()
+    .single();
+  return { data: result as InvitationToken | null, token, error };
+}
+
+export async function getInvitationByToken(token: string) {
+  const supabase = createUntypedClient();
+  const { data, error } = await supabase
+    .from("invitation_tokens")
+    .select("*, company:companies(*)")
+    .eq("token", token)
+    .eq("status", "pending")
+    .gt("expires_at", new Date().toISOString())
+    .single();
+  return { data: data as (InvitationToken & { company: Company }) | null, error };
+}
+
+export async function acceptInvitationToken(tokenId: string, userId: string) {
+  const supabase = createUntypedClient();
+  const { data, error } = await supabase
+    .from("invitation_tokens")
+    .update({
+      status: "accepted",
+      accepted_by: userId,
+      accepted_at: new Date().toISOString(),
+    })
+    .eq("id", tokenId)
+    .select()
+    .single();
+  return { data: data as InvitationToken | null, error };
+}
+
+export function useCompanyInvitations(companyId?: string) {
+  const supabase = createUntypedClient();
+
+  return useSupabaseQuery<InvitationToken[]>(async () => {
+    if (!companyId) return { data: [], error: null };
+    const { data, error } = await supabase
+      .from("invitation_tokens")
+      .select("*")
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: false });
+    return { data, error };
+  }, [companyId]);
 }

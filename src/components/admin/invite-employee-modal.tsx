@@ -4,6 +4,8 @@ import { useState } from "react";
 import { X, UserPlus, Mail, Users, Send, Copy, CheckCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
+import { createInvitationToken } from "@/hooks/use-supabase-data";
+import { useAuth } from "@/components/providers/auth-provider";
 
 interface InviteEmployeeModalProps {
   companyId: string;
@@ -26,6 +28,7 @@ export function InviteEmployeeModal({
   onInvited,
 }: InviteEmployeeModalProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [invitees, setInvitees] = useState<InviteeRow[]>([
     { id: "1", email: "", firstName: "", lastName: "" },
   ]);
@@ -140,10 +143,22 @@ export function InviteEmployeeModal({
   };
 
   const generateInviteLink = async () => {
-    // TODO: Generate a unique invite link for this company
-    const mockLink = `https://neo-coaching.fr/invitation/${companyId}?token=abc123`;
-    setInviteLink(mockLink);
-    toast("Lien d'invitation genere", "success");
+    try {
+      const { token, error } = await createInvitationToken({
+        company_id: companyId,
+        created_by: user?.id || "",
+        role: "salarie",
+        expires_in_days: 30,
+      });
+      if (error) throw error;
+
+      const baseUrl = window.location.origin;
+      const link = `${baseUrl}/invitation/${token}`;
+      setInviteLink(link);
+      toast("Lien d'invitation genere (valide 30 jours)", "success");
+    } catch {
+      toast("Erreur lors de la generation du lien", "error");
+    }
   };
 
   const copyLink = async () => {
