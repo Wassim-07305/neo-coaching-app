@@ -27,6 +27,7 @@ import type {
   InvitationToken,
   Availability,
   Livrable,
+  Payment,
 } from "@/lib/supabase/types";
 
 // Generic hook for fetching data
@@ -1471,5 +1472,47 @@ export async function updateLivrableStatus(
       reviewed_at: new Date().toISOString(),
     })
     .eq("id", livrableId);
+  return { error };
+}
+
+// ============================================================================
+// PAYMENTS
+// ============================================================================
+
+export interface PaymentWithDetails extends Payment {
+  user?: Profile;
+  module?: Module;
+}
+
+export function usePayments(filters?: { status?: string; type?: string; user_id?: string }) {
+  const supabase = createUntypedClient();
+
+  return useSupabaseQuery<PaymentWithDetails[]>(async () => {
+    let query = supabase
+      .from("payments")
+      .select(`
+        *,
+        user:profiles!user_id(id, first_name, last_name, email, avatar_url),
+        module:modules!module_id(id, title)
+      `);
+
+    if (filters?.status) query = query.eq("status", filters.status);
+    if (filters?.type) query = query.eq("type", filters.type);
+    if (filters?.user_id) query = query.eq("user_id", filters.user_id);
+
+    const { data, error } = await query.order("created_at", { ascending: false });
+    return { data: data as PaymentWithDetails[] | null, error };
+  }, [filters?.status, filters?.type, filters?.user_id]);
+}
+
+export async function updatePaymentStatus(
+  paymentId: string,
+  status: "succeeded" | "failed" | "refunded"
+) {
+  const supabase = createUntypedClient();
+  const { error } = await supabase
+    .from("payments")
+    .update({ status })
+    .eq("id", paymentId);
   return { error };
 }
