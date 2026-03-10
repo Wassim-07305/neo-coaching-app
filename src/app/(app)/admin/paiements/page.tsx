@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { usePayments, type PaymentWithDetails } from "@/hooks/use-supabase-data";
 import { useToast } from "@/components/ui/toast";
 import { EmptyState } from "@/components/ui/empty-state";
+import { RevenueChart } from "@/components/admin/revenue-chart";
 import type { PaymentStatus, PaymentType } from "@/lib/supabase/types";
 
 type FilterStatus = "all" | PaymentStatus;
@@ -419,6 +420,9 @@ export default function PaiementsPage() {
           </div>
         </div>
       </div>
+
+      {/* Revenue chart */}
+      <RevenueChart payments={payments} loading={loading} />
 
       {/* Filters */}
       <div className="bg-white rounded-xl border border-gray-200 p-4">

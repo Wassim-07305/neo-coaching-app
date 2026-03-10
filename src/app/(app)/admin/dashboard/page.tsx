@@ -5,7 +5,9 @@ import { StatsBar } from "@/components/admin/stats-bar";
 import { CoacheeTable } from "@/components/admin/coachee-table";
 import { EnterpriseKpis } from "@/components/admin/enterprise-kpis";
 import { ActivityFeed } from "@/components/admin/activity-feed";
-import { useAdminDashboardStats, useProfiles, useCompanies, useModuleProgress, useKpiScores } from "@/hooks/use-supabase-data";
+import { RevenueWidget } from "@/components/admin/revenue-widget";
+import { MonthlyEvolutionChart } from "@/components/admin/monthly-evolution-chart";
+import { useAdminDashboardStats, useProfiles, useCompanies, useModuleProgress, useKpiScores, usePayments } from "@/hooks/use-supabase-data";
 import { useMemo, useCallback } from "react";
 import type { MockActivity } from "@/lib/mock-data";
 import { formatDistanceToNow } from "date-fns";
@@ -23,6 +25,7 @@ export default function AdminDashboardPage() {
   const { data: companies, loading: companiesLoading } = useCompanies();
   const { data: moduleProgressList } = useModuleProgress();
   const { data: allKpiScores } = useKpiScores();
+  const { data: payments, loading: paymentsLoading } = usePayments();
 
   // Build a map of latest KPI scores per user
   const latestKpiByUser = useMemo(() => {
@@ -213,6 +216,12 @@ export default function AdminDashboardPage() {
         modulesCompletedThisMonth={stats?.completedModules || 0}
         averageSatisfaction={stats?.avgSatisfaction ? `${stats.avgSatisfaction}/10` : "N/A"}
       />
+
+      {/* Charts row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <MonthlyEvolutionChart kpiScores={allKpiScores || []} />
+        <RevenueWidget payments={payments || []} loading={paymentsLoading} />
+      </div>
 
       {/* Main content grid */}
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">

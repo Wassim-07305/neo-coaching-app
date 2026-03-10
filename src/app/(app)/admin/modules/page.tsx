@@ -1,17 +1,21 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { BookOpen, Plus, Loader2 } from "lucide-react";
+import { BookOpen, Plus, Loader2, Download } from "lucide-react";
 import { ModuleList } from "@/components/admin/module-list";
 import { ModuleForm } from "@/components/admin/module-form";
+import { ModuleStatsChart } from "@/components/admin/module-stats-chart";
 import { useModules, useModuleProgress } from "@/hooks/use-supabase-data";
+import { useToast } from "@/components/ui/toast";
 import { mockModules } from "@/lib/mock-data";
 import type { MockModule } from "@/lib/mock-data";
 
 export default function ModulesPage() {
+  const { toast } = useToast();
+
   // Fetch real data from Supabase
   const { data: supabaseModules, loading } = useModules();
-  const { data: allModuleProgress } = useModuleProgress();
+  const { data: allModuleProgress, loading: progressLoading } = useModuleProgress();
 
   // Count enrollments per module from module_progress
   const enrollmentCounts = useMemo(() => {
@@ -61,6 +65,37 @@ export default function ModulesPage() {
     setEditingModule(null);
   }
 
+  function exportToCSV() {
+    const headers = ["Titre", "Description", "Prix (EUR)", "Duree (sem.)", "Type", "Inscrits", "Completion %"];
+    const rows = modules.map((m) => {
+      const progress = allModuleProgress?.filter((mp) => mp.module_id === m.id) || [];
+      const completed = progress.filter((p) => p.status === "validated").length;
+      const completionRate = progress.length > 0 ? Math.round((completed / progress.length) * 100) : 0;
+      return [
+        m.title,
+        m.description,
+        m.price,
+        m.duration_weeks,
+        m.parcours_type,
+        m.enrolled_count,
+        completionRate,
+      ];
+    });
+
+    const csvContent = [headers, ...rows]
+      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+
+    const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `modules-${new Date().toISOString().split("T")[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast("Export CSV telecharge", "success");
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -76,16 +111,25 @@ export default function ModulesPage() {
         <div className="flex items-center gap-3">
           <BookOpen className="w-6 h-6 text-accent" />
           <h1 className="font-heading text-2xl font-bold text-dark">
-            Modules
+            Modules de formation
           </h1>
         </div>
-        <button
-          onClick={handleCreate}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-accent rounded-lg hover:bg-accent/90 transition-colors self-start sm:self-auto"
-        >
-          <Plus className="w-4 h-4" />
-          Creer un module
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={exportToCSV}
+            className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            <span className="hidden sm:inline">Exporter</span>
+          </button>
+          <button
+            onClick={handleCreate}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-accent rounded-lg hover:bg-accent/90 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Creer un module
+          </button>
+        </div>
       </div>
 
       {/* Summary */}
@@ -113,6 +157,13 @@ export default function ModulesPage() {
           </p>
         </div>
       </div>
+
+      {/* Stats chart */}
+      <ModuleStatsChart
+        modules={supabaseModules || []}
+        moduleProgress={allModuleProgress || []}
+        loading={progressLoading}
+      />
 
       {/* Module list */}
       <ModuleList modules={modules} onEdit={handleEdit} />
