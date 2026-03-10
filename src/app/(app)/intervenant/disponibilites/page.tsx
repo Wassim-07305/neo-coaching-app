@@ -10,9 +10,19 @@ import {
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
 
+function loadSavedDisponibilites(): IntervenantDisponibilite[] | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const saved = localStorage.getItem("intervenant_disponibilites");
+    return saved ? JSON.parse(saved) : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function IntervenantDisponibilitesPage() {
   const { toast } = useToast();
-  const initialDispos = getIntervenantDisponibilites();
+  const initialDispos = loadSavedDisponibilites() || getIntervenantDisponibilites();
   const [disponibilites, setDisponibilites] = useState<IntervenantDisponibilite[]>(initialDispos);
   const [hasChanges, setHasChanges] = useState(false);
   const idCounterRef = useRef(0);
@@ -62,7 +72,8 @@ export default function IntervenantDisponibilitesPage() {
   }, []);
 
   const handleSave = () => {
-    // TODO: Save to Supabase
+    // Persist locally until a dedicated DB table is created
+    localStorage.setItem("intervenant_disponibilites", JSON.stringify(disponibilites));
     toast("Disponibilites enregistrees avec succes", "success");
     setHasChanges(false);
   };

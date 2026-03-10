@@ -17,6 +17,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
+import { useAuth } from "@/components/providers/auth-provider";
+import { createUntypedClient } from "@/lib/supabase/client";
 
 type SettingsTab = "profil" | "plateforme" | "notifications" | "securite" | "facturation";
 
@@ -30,6 +32,7 @@ const tabs: { key: SettingsTab; label: string; icon: typeof Settings }[] = [
 
 export default function ParametresPage() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<SettingsTab>("profil");
   const [isSaving, setIsSaving] = useState(false);
 
@@ -67,8 +70,17 @@ export default function ParametresPage() {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      // TODO: Save to Supabase
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      const supabase = createUntypedClient();
+      if (user?.id) {
+        await supabase
+          .from("profiles")
+          .update({
+            first_name: profile.firstName,
+            last_name: profile.lastName,
+            phone: profile.phone,
+          })
+          .eq("id", user.id);
+      }
       toast("Parametres enregistres avec succes", "success");
     } catch {
       toast("Erreur lors de l&apos;enregistrement", "error");
