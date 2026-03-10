@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   ClipboardList,
   Plus,
@@ -11,6 +11,7 @@ import {
   Clock,
   Search,
   Filter,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -20,15 +21,16 @@ import {
   type QuestionnairePhase,
 } from "@/lib/mock-data-questionnaires";
 import { useToast } from "@/components/ui/toast";
+import { useQuestionnaireResponses } from "@/hooks/use-supabase-data";
 
 type FilterPhase = "all" | QuestionnairePhase;
 
-// Mock stats for questionnaires
-const mockStats = {
+// Default stats for when no data is available
+const defaultStats = {
   total: 8,
-  completed: 45,
-  pending: 12,
-  avgSatisfaction: 8.2,
+  completed: 0,
+  pending: 0,
+  avgSatisfaction: 0,
 };
 
 export default function QuestionnairesPage() {
@@ -39,7 +41,39 @@ export default function QuestionnairesPage() {
   const [selectedQuestionnaire, setSelectedQuestionnaire] =
     useState<MockQuestionnaire | null>(null);
 
+  // Fetch real questionnaire responses from Supabase
+  const { data: responses, loading: responsesLoading } = useQuestionnaireResponses({});
+
   const allQuestionnaires = getAllQuestionnaires();
+
+  // Calculate real stats from responses
+  const stats = useMemo(() => {
+    if (!responses || responses.length === 0) {
+      return { ...defaultStats, total: allQuestionnaires.length };
+    }
+
+    // Calculate average satisfaction from numeric answers (slider questions)
+    const satisfactionScores: number[] = [];
+    responses.forEach((r) => {
+      const answers = r.answers as Record<string, string | number>;
+      Object.values(answers).forEach((v) => {
+        if (typeof v === "number" && v >= 1 && v <= 10) {
+          satisfactionScores.push(v);
+        }
+      });
+    });
+
+    const avgSatisfaction = satisfactionScores.length > 0
+      ? Math.round((satisfactionScores.reduce((a, b) => a + b, 0) / satisfactionScores.length) * 10) / 10
+      : 0;
+
+    return {
+      total: allQuestionnaires.length,
+      completed: responses.length,
+      pending: Math.max(0, allQuestionnaires.length * 5 - responses.length), // Estimate
+      avgSatisfaction,
+    };
+  }, [responses, allQuestionnaires.length]);
 
   const filteredQuestionnaires = allQuestionnaires.filter((q) => {
     const matchesSearch =
@@ -87,7 +121,7 @@ export default function QuestionnairesPage() {
               <FileText className="w-5 h-5 text-accent" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-dark">{mockStats.total}</p>
+              <p className="text-2xl font-bold text-dark">{stats.total}</p>
               <p className="text-xs text-gray-500">Questionnaires</p>
             </div>
           </div>
@@ -98,9 +132,13 @@ export default function QuestionnairesPage() {
               <CheckCircle className="w-5 h-5 text-success" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-dark">
-                {mockStats.completed}
-              </p>
+              {responsesLoading ? (
+                <Loader2 className="w-6 h-6 animate-spin text-success" />
+              ) : (
+                <p className="text-2xl font-bold text-dark">
+                  {stats.completed}
+                </p>
+              )}
               <p className="text-xs text-gray-500">Reponses recues</p>
             </div>
           </div>
@@ -111,7 +149,7 @@ export default function QuestionnairesPage() {
               <Clock className="w-5 h-5 text-warning" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-dark">{mockStats.pending}</p>
+              <p className="text-2xl font-bold text-dark">{stats.pending}</p>
               <p className="text-xs text-gray-500">En attente</p>
             </div>
           </div>
@@ -123,7 +161,7 @@ export default function QuestionnairesPage() {
             </div>
             <div>
               <p className="text-2xl font-bold text-dark">
-                {mockStats.avgSatisfaction}/10
+                {stats.avgSatisfaction > 0 ? `${stats.avgSatisfaction}/10` : "N/A"}
               </p>
               <p className="text-xs text-gray-500">Satisfaction moy.</p>
             </div>

@@ -382,24 +382,47 @@ export function useCreateQuestionnaireQuestion() {
 }
 
 export function useSubmitQuestionnaireResponse() {
-  const supabase = createUntypedClient();
-
   return useMutation<
     { questionnaire_id: string; user_id: string; answers: Record<string, string | number>; module_progress_id?: string },
     QuestionnaireResponse
   >(async (input) => {
-    const { data, error } = await supabase
-      .from("questionnaire_responses")
-      .insert({
-        questionnaire_id: input.questionnaire_id,
-        user_id: input.user_id,
-        answers: input.answers,
-        module_progress_id: input.module_progress_id,
-        submitted_at: new Date().toISOString(),
-      } as AnyRecord)
-      .select()
-      .single();
-    return { data: data as QuestionnaireResponse | null, error };
+    try {
+      // Use API endpoint which includes satisfaction score calculation and notifications
+      const response = await fetch("/api/questionnaires/responses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          questionnaireId: input.questionnaire_id,
+          userId: input.user_id,
+          moduleProgressId: input.module_progress_id,
+          answers: input.answers,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        return { data: null, error: new Error(result.error || "Failed to submit response") };
+      }
+
+      return { data: result.data as QuestionnaireResponse, error: null };
+    } catch (err) {
+      // Fallback to direct Supabase insert if API fails
+      const supabase = createUntypedClient();
+      const { data, error: supabaseError } = await supabase
+        .from("questionnaire_responses")
+        .insert({
+          questionnaire_id: input.questionnaire_id,
+          user_id: input.user_id,
+          answers: input.answers,
+          module_progress_id: input.module_progress_id,
+          submitted_at: new Date().toISOString(),
+        } as AnyRecord)
+        .select()
+        .single();
+      const finalError = supabaseError || (err instanceof Error ? err : new Error(String(err)));
+      return { data: data as QuestionnaireResponse | null, error: finalError };
+    }
   });
 }
 
