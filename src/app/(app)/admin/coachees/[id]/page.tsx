@@ -12,7 +12,7 @@ import { SatisfactionChart } from "@/components/admin/satisfaction-chart";
 import { KpiScoringModal } from "@/components/admin/kpi-scoring-modal";
 import { AssignModuleModal } from "@/components/admin/assign-module-modal";
 import { SendMessageModal } from "@/components/admin/send-message-modal";
-import { useProfile, useUserModuleProgress, useLatestKpiScore, useKpiScores, useCompany } from "@/hooks/use-supabase-data";
+import { useProfile, useUserModuleProgress, useLatestKpiScore, useKpiScores, useCompany, useAppointments } from "@/hooks/use-supabase-data";
 import { mockCoachees } from "@/lib/mock-data";
 import { useToast } from "@/components/ui/toast";
 import { format } from "date-fns";
@@ -35,6 +35,7 @@ export default function CoacheeDetailPage({
   const { data: latestKpi } = useLatestKpiScore(id);
   const { data: kpiHistory } = useKpiScores({ user_id: id });
   const { data: company } = useCompany(profile?.company_id || undefined);
+  const { data: appointments } = useAppointments({ client_id: id });
 
   // Fallback mock coachee
   const mockCoachee = mockCoachees.find((c) => c.id === id);
@@ -74,13 +75,26 @@ export default function CoacheeDetailPage({
           satisfaction_score: mp.satisfaction_score || undefined,
         })) || [],
         livrables: [],
-        calls: [],
-        certificates: [],
+        calls: appointments?.map((appt) => ({
+          id: appt.id,
+          date: appt.datetime_start,
+          type: (appt.type === "discovery" ? "decouverte" : appt.type === "coaching" ? "coaching" : "review") as "decouverte" | "coaching" | "review",
+          duration_minutes: 60,
+          notes: appt.notes || "",
+        })) || [],
+        certificates: moduleProgress
+          ?.filter((mp) => mp.status === "validated")
+          .map((mp) => ({
+            id: `cert-${mp.id}`,
+            module_id: mp.module_id,
+            module_title: mp.module?.title || "Module",
+            earned_date: mp.validated_at || mp.created_at,
+          })) || [],
         last_activity: profile.updated_at,
       };
     }
     return mockCoachee;
-  }, [profile, company, latestKpi, kpiHistory, moduleProgress, mockCoachee]);
+  }, [profile, company, latestKpi, kpiHistory, moduleProgress, appointments, mockCoachee]);
 
   const [showKpiModal, setShowKpiModal] = useState(false);
   const [showAssignModule, setShowAssignModule] = useState(false);
