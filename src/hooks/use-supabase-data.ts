@@ -916,16 +916,20 @@ export async function completeModule(userId: string, moduleId: string) {
     .eq("module_id", moduleId)
     .single();
 
+  let result: ModuleProgress | null = null;
+  let error: Error | null = null;
+
   if (existing) {
-    const { data: result, error } = await supabase
+    const res = await supabase
       .from("module_progress")
       .update({ status: "submitted", submitted_at: new Date().toISOString() })
       .eq("id", existing.id)
       .select()
       .single();
-    return { data: result as ModuleProgress | null, error };
+    result = res.data as ModuleProgress | null;
+    error = res.error;
   } else {
-    const { data: result, error } = await supabase
+    const res = await supabase
       .from("module_progress")
       .insert({
         user_id: userId,
@@ -935,8 +939,38 @@ export async function completeModule(userId: string, moduleId: string) {
       })
       .select()
       .single();
-    return { data: result as ModuleProgress | null, error };
+    result = res.data as ModuleProgress | null;
+    error = res.error;
   }
+
+  // Notify admins about module completion
+  if (!error) {
+    const { data: admins } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("role", "admin");
+    if (admins && admins.length > 0) {
+      const { data: userProfile } = await supabase
+        .from("profiles")
+        .select("first_name, last_name")
+        .eq("id", userId)
+        .single();
+      const userName = userProfile
+        ? `${userProfile.first_name} ${userProfile.last_name}`
+        : "Un utilisateur";
+      for (const admin of admins) {
+        await createNotification({
+          user_id: admin.id,
+          type: "module_complete",
+          title: "Module soumis",
+          body: `${userName} a termine un module et attend la validation.`,
+          link: "/admin/modules",
+        });
+      }
+    }
+  }
+
+  return { data: result, error };
 }
 
 export async function submitSatisfactionScore(userId: string, moduleId: string, score: number) {
@@ -997,6 +1031,26 @@ export async function insertMessage(data: {
     })
     .select()
     .single();
+
+  // Notify the recipient for DMs
+  if (!error && data.recipient_id) {
+    const { data: sender } = await supabase
+      .from("profiles")
+      .select("first_name, last_name")
+      .eq("id", data.sender_id)
+      .single();
+    const senderName = sender
+      ? `${sender.first_name} ${sender.last_name}`
+      : "Quelqu'un";
+    await createNotification({
+      user_id: data.recipient_id,
+      type: "message",
+      title: "Nouveau message",
+      body: `${senderName} vous a envoye un message.`,
+      link: "/coaching/communaute",
+    });
+  }
+
   return { data: result as Message | null, error };
 }
 
@@ -1055,6 +1109,29 @@ export async function updateAppointmentStatus(
     .select()
     .single();
   return { data: result as Appointment | null, error };
+}
+
+// ============================================================
+// NOTIFICATION MUTATIONS
+// ============================================================
+
+export async function createNotification(data: {
+  user_id: string;
+  type: "module_complete" | "module_reminder" | "kpi_alert" | "message" | "rdv_reminder" | "task_reminder";
+  title: string;
+  body: string;
+  link?: string;
+}) {
+  const supabase = createUntypedClient();
+  const { error } = await supabase.from("notifications").insert({
+    user_id: data.user_id,
+    type: data.type,
+    title: data.title,
+    body: data.body,
+    link: data.link || null,
+    is_read: false,
+  });
+  return { error };
 }
 
 // ============================================================
