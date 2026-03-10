@@ -1,19 +1,36 @@
 "use client";
 
-import { useState } from "react";
-import { BookOpen, Plus } from "lucide-react";
+import { useState, useMemo } from "react";
+import { BookOpen, Plus, Loader2 } from "lucide-react";
 import { ModuleList } from "@/components/admin/module-list";
 import { ModuleForm } from "@/components/admin/module-form";
+import { useModules } from "@/hooks/use-supabase-data";
 import { mockModules } from "@/lib/mock-data";
 import type { MockModule } from "@/lib/mock-data";
 
-// Replace with Supabase query when ready
-function getModulesData() {
-  return mockModules;
-}
-
 export default function ModulesPage() {
-  const modules = getModulesData();
+  // Fetch real data from Supabase
+  const { data: supabaseModules, loading } = useModules();
+
+  // Transform Supabase data to match MockModule structure
+  const modules = useMemo((): MockModule[] => {
+    if (supabaseModules && supabaseModules.length > 0) {
+      return supabaseModules.map((m) => ({
+        id: m.id,
+        title: m.title,
+        description: m.description || "",
+        content_summary: m.description || "",
+        price: m.price_cents / 100,
+        duration_weeks: m.duration_minutes ? Math.round(m.duration_minutes / 60 / 40) || 1 : 1, // Approximate weeks
+        order_index: m.order_index,
+        parcours_type: m.parcours_type,
+        enrolled_count: 0, // Not available in Supabase Module type
+        exercise_json: JSON.stringify(m.exercise || {}),
+      }));
+    }
+    return mockModules;
+  }, [supabaseModules]);
+
   const [formOpen, setFormOpen] = useState(false);
   const [editingModule, setEditingModule] = useState<MockModule | null>(null);
 
@@ -30,6 +47,14 @@ export default function ModulesPage() {
   function handleClose() {
     setFormOpen(false);
     setEditingModule(null);
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-accent" />
+      </div>
+    );
   }
 
   return (
