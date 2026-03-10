@@ -4,13 +4,25 @@ import { useState, useMemo } from "react";
 import { BookOpen, Plus, Loader2 } from "lucide-react";
 import { ModuleList } from "@/components/admin/module-list";
 import { ModuleForm } from "@/components/admin/module-form";
-import { useModules } from "@/hooks/use-supabase-data";
+import { useModules, useModuleProgress } from "@/hooks/use-supabase-data";
 import { mockModules } from "@/lib/mock-data";
 import type { MockModule } from "@/lib/mock-data";
 
 export default function ModulesPage() {
   // Fetch real data from Supabase
   const { data: supabaseModules, loading } = useModules();
+  const { data: allModuleProgress } = useModuleProgress();
+
+  // Count enrollments per module from module_progress
+  const enrollmentCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    if (allModuleProgress) {
+      for (const mp of allModuleProgress) {
+        counts[mp.module_id] = (counts[mp.module_id] || 0) + 1;
+      }
+    }
+    return counts;
+  }, [allModuleProgress]);
 
   // Transform Supabase data to match MockModule structure
   const modules = useMemo((): MockModule[] => {
@@ -21,15 +33,15 @@ export default function ModulesPage() {
         description: m.description || "",
         content_summary: m.description || "",
         price: m.price_cents / 100,
-        duration_weeks: m.duration_minutes ? Math.round(m.duration_minutes / 60 / 40) || 1 : 1, // Approximate weeks
+        duration_weeks: m.duration_minutes ? Math.round(m.duration_minutes / 60 / 40) || 1 : 1,
         order_index: m.order_index,
         parcours_type: m.parcours_type,
-        enrolled_count: 0, // Not available in Supabase Module type
+        enrolled_count: enrollmentCounts[m.id] || 0,
         exercise_json: JSON.stringify(m.exercise || {}),
       }));
     }
     return mockModules;
-  }, [supabaseModules]);
+  }, [supabaseModules, enrollmentCounts]);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingModule, setEditingModule] = useState<MockModule | null>(null);
