@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import {
   BookOpen,
@@ -11,30 +11,26 @@ import {
   ShoppingCart,
   ChevronRight,
   ClipboardList,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
+import { useAuth } from "@/components/providers/auth-provider";
+import { useUserModuleProgress, useModules, useQuestionnaireResponses } from "@/hooks/use-supabase-data";
 import { mockModules } from "@/lib/mock-data";
 import { getModuleQuestionnaires } from "@/lib/mock-data-questionnaires";
 
 type ModuleStatus = "purchased" | "in_progress" | "completed" | "locked";
 
-interface UserModule {
-  moduleId: string;
-  status: ModuleStatus;
-  progress: number; // 0-100
-}
-
-// Mock user's module data
-const userModules: UserModule[] = [
-  { moduleId: "mod-1", status: "completed", progress: 100 },
-  { moduleId: "mod-2", status: "in_progress", progress: 60 },
-  { moduleId: "mod-3", status: "locked", progress: 0 },
-  { moduleId: "mod-4", status: "locked", progress: 0 },
+// Mock fallback data
+const mockUserModules = [
+  { moduleId: "mod-1", status: "completed" as const, progress: 100 },
+  { moduleId: "mod-2", status: "in_progress" as const, progress: 60 },
+  { moduleId: "mod-3", status: "locked" as const, progress: 0 },
+  { moduleId: "mod-4", status: "locked" as const, progress: 0 },
 ];
 
-// Mock questionnaire completion status
-const userQuestionnaireStatus: Record<string, { amont: boolean; aval: boolean }> = {
+const mockQuestionnaireStatus: Record<string, { amont: boolean; aval: boolean }> = {
   "mod-1": { amont: true, aval: true },
   "mod-2": { amont: true, aval: false },
   "mod-3": { amont: false, aval: false },
@@ -57,12 +53,74 @@ const statusConfig: Record<ModuleStatus, { label: string; color: string; icon: R
 
 export default function CoachingModulesPage() {
   const { toast } = useToast();
+  const { profile, loading: authLoading } = useAuth();
   const [purchasingId, setPurchasingId] = useState<string | null>(null);
 
+  // Fetch real data from Supabase
+  const { data: moduleProgress, loading: progressLoading } = useUserModuleProgress(profile?.id);
+  const { data: allModules } = useModules();
+  const { data: questionnaireResponses } = useQuestionnaireResponses({ user_id: profile?.id });
+
+  // Transform module progress data
+  const userModules = useMemo(() => {
+    if (moduleProgress && moduleProgress.length > 0) {
+      return moduleProgress.map((mp) => ({
+        moduleId: mp.module_id,
+        status: mp.status === "validated" ? "completed" as const
+          : mp.status === "in_progress" ? "in_progress" as const
+          : mp.status === "submitted" ? "in_progress" as const
+          : mp.status === "not_started" ? "purchased" as const
+          : "locked" as const,
+        progress: mp.status === "validated" ? 100
+          : mp.status === "in_progress" ? 60
+          : 0,
+      }));
+    }
+    return mockUserModules;
+  }, [moduleProgress]);
+
+  // Get questionnaire completion status per module
+  const userQuestionnaireStatus = useMemo(() => {
+    const status: Record<string, { amont: boolean; aval: boolean }> = {};
+
+    if (questionnaireResponses && questionnaireResponses.length > 0) {
+      questionnaireResponses.forEach((resp) => {
+        const moduleId = resp.module_progress_id || "";
+        if (!status[moduleId]) {
+          status[moduleId] = { amont: false, aval: false };
+        }
+        if (resp.questionnaire_id.includes("amont")) {
+          status[moduleId].amont = true;
+        } else if (resp.questionnaire_id.includes("aval")) {
+          status[moduleId].aval = true;
+        }
+      });
+      return status;
+    }
+    return mockQuestionnaireStatus;
+  }, [questionnaireResponses]);
+
   // Filter modules for individual coaching
-  const availableModules = mockModules.filter(
-    (m) => m.parcours_type === "individuel" || m.parcours_type === "les_deux"
-  );
+  const availableModules = useMemo(() => {
+    if (allModules && allModules.length > 0) {
+      return allModules.filter(
+        (m) => m.parcours_type === "individuel" || m.parcours_type === "les_deux"
+      );
+    }
+    return mockModules.filter(
+      (m) => m.parcours_type === "individuel" || m.parcours_type === "les_deux"
+    );
+  }, [allModules]);
+
+  const isLoading = authLoading || progressLoading;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-accent" />
+      </div>
+    );
+  }
 
   const handlePurchase = async (moduleId: string, moduleTitle: string) => {
     setPurchasingId(moduleId);
@@ -167,11 +225,11 @@ export default function CoachingModulesPage() {
                         </span>
                         {/* Questionnaire indicator */}
                         {getModuleQuestionnaires(module.id) && (
-                          <QuestionnaireIndicator moduleId={module.id} />
+                          <QuestionnaireIndicator qStatus={userQuestionnaireStatus[module.id] || { amont: false, aval: false }} />
                         )}
                       </div>
                       <p className="text-xs text-gray-500 mt-0.5">
-                        {module.duration_weeks} semaines
+                        {'duration_weeks' in module ? `${module.duration_weeks} semaines` : (module.duration_minutes ? `${Math.round(module.duration_minutes / 60)} heures` : '1 semaine')}
                       </p>
 
                       {/* Progress bar for in_progress */}
@@ -234,7 +292,7 @@ export default function CoachingModulesPage() {
                 <div className="flex items-center gap-3 mt-3 text-xs text-gray-400">
                   <span className="flex items-center gap-1">
                     <Clock className="w-3.5 h-3.5" />
-                    {module.duration_weeks} sem.
+                    {'duration_weeks' in module ? `${module.duration_weeks} sem.` : (module.duration_minutes ? `${Math.round(module.duration_minutes / 60)}h` : '1 sem.')}
                   </span>
                 </div>
 
@@ -242,7 +300,7 @@ export default function CoachingModulesPage() {
                 <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
                   <div>
                     <p className="text-xl font-bold text-dark">
-                      {formatCurrency(module.price)}
+                      {formatCurrency('price' in module ? module.price : module.price_cents / 100)}
                     </p>
                     <p className="text-[10px] text-gray-400">Paiement unique</p>
                   </div>
@@ -282,8 +340,7 @@ export default function CoachingModulesPage() {
 }
 
 // Questionnaire status indicator component
-function QuestionnaireIndicator({ moduleId }: { moduleId: string }) {
-  const qStatus = userQuestionnaireStatus[moduleId] || { amont: false, aval: false };
+function QuestionnaireIndicator({ qStatus }: { qStatus: { amont: boolean; aval: boolean } }) {
   const total = 2;
   const completed = (qStatus.amont ? 1 : 0) + (qStatus.aval ? 1 : 0);
 

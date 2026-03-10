@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   Users,
   Plus,
@@ -8,10 +8,12 @@ import {
   Filter,
   Building2,
   User,
+  Loader2,
 } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CoacheeTable } from "@/components/admin/coachee-table";
 import { CreateCoacheeModal } from "@/components/admin/create-coachee-modal";
+import { useProfiles, useCompanies, useModuleProgress } from "@/hooks/use-supabase-data";
 import { mockCoachees } from "@/lib/mock-data";
 
 type FilterType = "all" | "individuel" | "entreprise";
@@ -23,8 +25,57 @@ export default function CoacheesPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [showCreateModal, setShowCreateModal] = useState(false);
 
+  // Fetch real data from Supabase
+  const { data: profiles, loading: profilesLoading } = useProfiles();
+  const { data: companies } = useCompanies();
+  const { data: moduleProgressList } = useModuleProgress();
+
+  // Transform Supabase data to match component props
+  const coachees = useMemo(() => {
+    if (profiles && profiles.length > 0) {
+      return profiles
+        .filter((p) => p.role === "coachee" || p.role === "salarie")
+        .map((profile) => {
+          const company = companies?.find((c) => c.id === profile.company_id);
+          const userProgress = moduleProgressList?.filter((mp) => mp.user_id === profile.id) || [];
+
+          return {
+            id: profile.id,
+            first_name: profile.first_name,
+            last_name: profile.last_name,
+            email: profile.email,
+            avatar_url: profile.avatar_url,
+            type: (profile.coaching_type || "individuel") as "individuel" | "entreprise",
+            status: profile.status === "active" ? "actif" as const : profile.status === "inactive" ? "inactif" as const : "archive" as const,
+            company_id: profile.company_id,
+            company_name: company?.name || null,
+            start_date: profile.created_at,
+            current_module: null,
+            kpis: {
+              investissement: 7,
+              efficacite: 7,
+              participation: 7,
+            },
+            kpi_history: [],
+            module_progress: userProgress.map((mp) => ({
+              module_id: mp.module_id,
+              module_title: mp.module?.title || "Module",
+              status: mp.status === "validated" ? "complete" as const : mp.status === "in_progress" ? "en_cours" as const : "non_commence" as const,
+              satisfaction_score: mp.satisfaction_score || undefined,
+            })),
+            livrables: [],
+            calls: [],
+            certificates: [],
+            last_activity: profile.updated_at,
+          };
+        });
+    }
+    // Fallback to mock data
+    return mockCoachees;
+  }, [profiles, companies, moduleProgressList]);
+
   // Filter coachees
-  const filteredCoachees = mockCoachees.filter((coachee) => {
+  const filteredCoachees = coachees.filter((coachee) => {
     const matchesSearch =
       search === "" ||
       `${coachee.first_name} ${coachee.last_name}`
@@ -40,11 +91,19 @@ export default function CoacheesPage() {
 
   // Stats
   const stats = {
-    total: mockCoachees.length,
-    actifs: mockCoachees.filter((c) => c.status === "actif").length,
-    individuels: mockCoachees.filter((c) => c.type === "individuel").length,
-    entreprises: mockCoachees.filter((c) => c.type === "entreprise").length,
+    total: coachees.length,
+    actifs: coachees.filter((c) => c.status === "actif").length,
+    individuels: coachees.filter((c) => c.type === "individuel").length,
+    entreprises: coachees.filter((c) => c.type === "entreprise").length,
   };
+
+  if (profilesLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-accent" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

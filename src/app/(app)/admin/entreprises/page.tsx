@@ -1,14 +1,42 @@
 "use client";
 
-import { useState } from "react";
-import { Building2, Plus, Users, TrendingUp, CheckCircle } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Building2, Plus, Users, TrendingUp, CheckCircle, Loader2 } from "lucide-react";
 import { CompanyList } from "@/components/admin/company-list";
 import { CreateCompanyModal } from "@/components/admin/create-company-modal";
+import { useCompanies, useProfiles } from "@/hooks/use-supabase-data";
 import { mockCompanies } from "@/lib/mock-data";
 
 export default function EntreprisesPage() {
-  const [companies] = useState(mockCompanies);
   const [showCreateModal, setShowCreateModal] = useState(false);
+
+  // Fetch real data from Supabase
+  const { data: supabaseCompanies, loading: companiesLoading } = useCompanies();
+  const { data: profiles } = useProfiles();
+
+  // Transform Supabase data to match component props
+  const companies = useMemo(() => {
+    if (supabaseCompanies && supabaseCompanies.length > 0) {
+      return supabaseCompanies.map((company) => {
+        const employeeCount = profiles?.filter((p) => p.company_id === company.id).length || 0;
+
+        return {
+          id: company.id,
+          name: company.name,
+          dirigeant_name: "",
+          dirigeant_email: "",
+          employee_count: employeeCount,
+          mission_start: company.mission_start_date || "",
+          mission_end: company.mission_end_date || "",
+          mission_status: company.mission_status,
+          objectives: [] as string[],
+          logo_placeholder: company.name.substring(0, 2).toUpperCase(),
+        };
+      });
+    }
+    // Fallback to mock data
+    return mockCompanies;
+  }, [supabaseCompanies, profiles]);
 
   // Stats
   const stats = {
@@ -17,6 +45,14 @@ export default function EntreprisesPage() {
     completed: companies.filter((c) => c.mission_status === "completed").length,
     totalEmployees: companies.reduce((sum, c) => sum + c.employee_count, 0),
   };
+
+  if (companiesLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-accent" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

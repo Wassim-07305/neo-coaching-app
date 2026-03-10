@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import Link from "next/link";
 import {
   BookOpen,
@@ -9,32 +10,15 @@ import {
   ChevronRight,
   ClipboardList,
   Award,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/components/providers/auth-provider";
+import { useUserModuleProgress, useModules, useQuestionnaireResponses } from "@/hooks/use-supabase-data";
 import { mockModules } from "@/lib/mock-data";
 import { getModuleQuestionnaires } from "@/lib/mock-data-questionnaires";
 
 type ModuleStatus = "en_cours" | "complete" | "a_venir";
-
-interface UserModule {
-  moduleId: string;
-  status: ModuleStatus;
-  progress: number;
-}
-
-// Mock user's assigned modules (from their parcours)
-const userModules: UserModule[] = [
-  { moduleId: "mod-1", status: "complete", progress: 100 },
-  { moduleId: "mod-2", status: "en_cours", progress: 45 },
-  { moduleId: "mod-3", status: "a_venir", progress: 0 },
-];
-
-// Mock questionnaire completion status
-const userQuestionnaireStatus: Record<string, { amont: boolean; aval: boolean }> = {
-  "mod-1": { amont: true, aval: true },
-  "mod-2": { amont: true, aval: false },
-  "mod-3": { amont: false, aval: false },
-};
 
 const statusConfig: Record<ModuleStatus, { label: string; color: string; icon: React.ElementType }> = {
   complete: { label: "Termine", color: "bg-success/10 text-success", icon: CheckCircle },
@@ -42,9 +26,76 @@ const statusConfig: Record<ModuleStatus, { label: string; color: string; icon: R
   a_venir: { label: "A venir", color: "bg-gray-100 text-gray-500", icon: Clock },
 };
 
+// Fallback mock data
+const mockUserModules = [
+  { moduleId: "mod-1", status: "complete" as const, progress: 100 },
+  { moduleId: "mod-2", status: "en_cours" as const, progress: 45 },
+  { moduleId: "mod-3", status: "a_venir" as const, progress: 0 },
+];
+
+const mockQuestionnaireStatus: Record<string, { amont: boolean; aval: boolean }> = {
+  "mod-1": { amont: true, aval: true },
+  "mod-2": { amont: true, aval: false },
+  "mod-3": { amont: false, aval: false },
+};
+
 export default function SalarieModulesPage() {
+  const { profile, loading: authLoading } = useAuth();
+
+  // Fetch real data from Supabase
+  const { data: moduleProgress, loading: progressLoading } = useUserModuleProgress(profile?.id);
+  const { data: allModules } = useModules();
+  const { data: questionnaireResponses } = useQuestionnaireResponses({ user_id: profile?.id });
+
+  // Transform module progress data
+  const userModules = useMemo(() => {
+    if (moduleProgress && moduleProgress.length > 0) {
+      return moduleProgress.map((mp) => ({
+        moduleId: mp.module_id,
+        status: mp.status === "validated" ? "complete" as const
+          : mp.status === "in_progress" ? "en_cours" as const
+          : mp.status === "submitted" ? "en_cours" as const
+          : "a_venir" as const,
+        progress: mp.status === "validated" ? 100
+          : mp.status === "in_progress" ? 45
+          : 0,
+      }));
+    }
+    // Fallback to mock data
+    return mockUserModules;
+  }, [moduleProgress]);
+
+  // Get questionnaire completion status per module
+  const userQuestionnaireStatus = useMemo(() => {
+    const status: Record<string, { amont: boolean; aval: boolean }> = {};
+
+    if (questionnaireResponses && questionnaireResponses.length > 0) {
+      questionnaireResponses.forEach((resp) => {
+        const moduleId = resp.module_progress_id || "";
+        if (!status[moduleId]) {
+          status[moduleId] = { amont: false, aval: false };
+        }
+        // Determine if it's amont or aval based on questionnaire type
+        // For now, simple assumption based on questionnaire ID pattern
+        if (resp.questionnaire_id.includes("amont")) {
+          status[moduleId].amont = true;
+        } else if (resp.questionnaire_id.includes("aval")) {
+          status[moduleId].aval = true;
+        }
+      });
+      return status;
+    }
+    // Fallback to mock data
+    return mockQuestionnaireStatus;
+  }, [questionnaireResponses]);
+
   const assignedModuleIds = userModules.map((m) => m.moduleId);
-  const assignedModules = mockModules.filter((m) => assignedModuleIds.includes(m.id));
+  const assignedModules = useMemo(() => {
+    if (allModules && allModules.length > 0) {
+      return allModules.filter((m) => assignedModuleIds.includes(m.id));
+    }
+    return mockModules.filter((m) => assignedModuleIds.includes(m.id));
+  }, [allModules, assignedModuleIds]);
 
   const getModuleStatus = (moduleId: string): ModuleStatus => {
     return userModules.find((m) => m.moduleId === moduleId)?.status || "a_venir";
@@ -61,6 +112,16 @@ export default function SalarieModulesPage() {
     (acc, q) => acc + (q.amont ? 1 : 0) + (q.aval ? 1 : 0),
     0
   );
+
+  const isLoading = authLoading || progressLoading;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-accent" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -199,7 +260,7 @@ export default function SalarieModulesPage() {
                     )}
                   </div>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    {module.duration_weeks} semaines &bull; {module.description.slice(0, 50)}...
+                    {'duration_weeks' in module ? `${module.duration_weeks} semaines` : (module.duration_minutes ? `${Math.round(module.duration_minutes / 60)} heures` : '1 semaine')} &bull; {(module.description || '').slice(0, 50)}...
                   </p>
 
                   {/* Progress bar for en_cours */}
