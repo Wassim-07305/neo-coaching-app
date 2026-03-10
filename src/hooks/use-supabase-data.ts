@@ -952,3 +952,17 @@ export async function upsertModule(data: {
     return { data: result as Module | null, error };
   }
 }
+
+export async function updateAppointmentStatus(
+  id: string,
+  status: "scheduled" | "completed" | "cancelled" | "no_show"
+) {
+  const supabase = createUntypedClient();
+  const { data: result, error } = await supabase
+    .from("appointments")
+    .update({ status })
+    .eq("id", id)
+    .select()
+    .single();
+  return { data: result as Appointment | null, error };
+}

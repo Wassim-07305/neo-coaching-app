@@ -17,6 +17,8 @@ import {
   type ParcoursTemplate,
 } from "@/lib/mock-data-parcours";
 import { mockCoachees, mockModules } from "@/lib/mock-data";
+import { createUntypedClient } from "@/lib/supabase/client";
+import { useAuth } from "@/components/providers/auth-provider";
 
 type Step = "template" | "user" | "dates" | "confirm";
 
@@ -36,6 +38,7 @@ export function AssignParcoursModal({
   onAssigned,
 }: AssignParcoursModalProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [step, setStep] = useState<Step>("template");
   const [selectedTemplate, setSelectedTemplate] = useState<ParcoursTemplate | null>(null);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
@@ -72,8 +75,37 @@ export function AssignParcoursModal({
 
     setIsAssigning(true);
     try {
-      // TODO: Create assignment in Supabase
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      const supabase = createUntypedClient();
+      const { data: parcours, error: parcoursError } = await supabase
+        .from("assigned_parcours")
+        .insert({
+          template_id: selectedTemplate.id,
+          title: selectedTemplate.title,
+          description: selectedTemplate.description,
+          assigned_to: selectedUser,
+          assigned_by: user?.id || "",
+          start_date: startDate,
+          end_date: endDate,
+          status: "not_started",
+          progress: 0,
+        })
+        .select()
+        .single();
+      if (parcoursError) throw parcoursError;
+
+      if (parcours) {
+        const modulesInsert = moduleDeadlines.map((md, idx) => ({
+          parcours_id: parcours.id,
+          module_id: md.moduleId,
+          order_index: idx + 1,
+          deadline: md.deadline,
+          status: "locked",
+        }));
+        const { error: modulesError } = await supabase
+          .from("parcours_modules")
+          .insert(modulesInsert);
+        if (modulesError) throw modulesError;
+      }
 
       toast(
         `Parcours "${selectedTemplate.title}" assigne a ${selectedUserData?.first_name} ${selectedUserData?.last_name}`,

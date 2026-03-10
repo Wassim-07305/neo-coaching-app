@@ -4,6 +4,7 @@ import { useState } from "react";
 import { CheckCircle2, Circle, Clock, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
+import { createUntypedClient } from "@/lib/supabase/client";
 
 interface Task {
   id: string;
@@ -27,7 +28,7 @@ export function MyTasks({ initialTasks }: MyTasksProps) {
     return new Date(dueDate) < today;
   }
 
-  function markAsComplete(taskId: string) {
+  async function markAsComplete(taskId: string) {
     const task = tasks.find((t) => t.id === taskId);
     if (!task) return;
 
@@ -35,7 +36,20 @@ export function MyTasks({ initialTasks }: MyTasksProps) {
       prev.map((t) => (t.id === taskId ? { ...t, completed: true } : t))
     );
 
-    // TODO: Update in Supabase tasks table
+    try {
+      const supabase = createUntypedClient();
+      await supabase
+        .from("tasks")
+        .update({ status: "completed", completed_at: new Date().toISOString() })
+        .eq("id", taskId);
+    } catch {
+      // Revert on error
+      setTasks((prev) =>
+        prev.map((t) => (t.id === taskId ? { ...t, completed: false } : t))
+      );
+      toast("Erreur lors de la mise a jour", "error");
+      return;
+    }
     toast(`Bravo ! "${task.title}" marque comme termine.`, "success");
   }
 
