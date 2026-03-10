@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { mockModules } from "@/lib/mock-data";
@@ -8,6 +8,9 @@ import { ExerciseSection } from "./exercise-section";
 import { LivrableUpload } from "./livrable-upload";
 import { SatisfactionForm } from "./satisfaction-form";
 import { QualiopiQuestionnaires } from "./qualiopi-questionnaires";
+import { useModule, useUserModuleProgress, completeModule, submitSatisfactionScore } from "@/hooks/use-supabase-data";
+import { useAuth } from "@/components/providers/auth-provider";
+import { useToast } from "@/components/ui/toast";
 import {
   ArrowLeft,
   Play,
@@ -16,6 +19,7 @@ import {
   Award,
   CheckCircle2,
   Sparkles,
+  Loader2,
 } from "lucide-react";
 
 interface ModuleContentProps {
@@ -76,10 +80,60 @@ Exercice pratique : Le pitch de 2 minutes. Presentez-vous, votre projet ou une i
 };
 
 export function ModuleContent({ moduleId, basePath }: ModuleContentProps) {
+  const { user } = useAuth();
+  const { toast } = useToast();
   const [moduleCompleted, setModuleCompleted] = useState(false);
   const [showCongrats, setShowCongrats] = useState(false);
+  const [completing, setCompleting] = useState(false);
 
-  const mod = mockModules.find((m) => m.id === moduleId);
+  // Fetch module from Supabase
+  const { data: supabaseModule, loading: moduleLoading } = useModule(moduleId);
+  const { data: moduleProgress } = useUserModuleProgress(user?.id);
+
+  // Find this module's progress
+  const currentProgress = useMemo(() => {
+    if (moduleProgress) {
+      return moduleProgress.find((mp) => mp.module_id === moduleId);
+    }
+    return null;
+  }, [moduleProgress, moduleId]);
+
+  // Use Supabase module or fallback to mock
+  const mod = useMemo(() => {
+    if (supabaseModule) {
+      return {
+        id: supabaseModule.id,
+        title: supabaseModule.title,
+        description: supabaseModule.description || "",
+        content_summary: typeof supabaseModule.content === "object" && supabaseModule.content !== null
+          ? (supabaseModule.content as Record<string, string>).summary || ""
+          : "",
+        exercise_json: supabaseModule.exercise
+          ? JSON.stringify(supabaseModule.exercise)
+          : "{}",
+        duration_weeks: supabaseModule.duration_minutes
+          ? Math.max(1, Math.round(supabaseModule.duration_minutes / (60 * 5 * 7)))
+          : 1,
+        duration_minutes: supabaseModule.duration_minutes || 60,
+        parcours_type: supabaseModule.parcours_type,
+        price_cents: supabaseModule.price_cents,
+      };
+    }
+    const mockMod = mockModules.find((m) => m.id === moduleId);
+    if (mockMod) return mockMod;
+    return null;
+  }, [supabaseModule, moduleId]);
+
+  // Check if already completed
+  const isAlreadyCompleted = currentProgress?.status === "submitted" || currentProgress?.status === "validated";
+
+  if (moduleLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-accent" />
+      </div>
+    );
+  }
 
   if (!mod) {
     return (
@@ -107,13 +161,50 @@ export function ModuleContent({ moduleId, basePath }: ModuleContentProps) {
     }
   })();
 
-  const richContent = moduleRichContent[mod.id] || mod.content_summary;
+  const richContent = moduleRichContent[mod.id] || mod.content_summary || mod.description;
 
-  function handleModuleComplete() {
-    setModuleCompleted(true);
-    setShowCongrats(true);
-    // Auto-hide congrats after a few seconds
-    setTimeout(() => setShowCongrats(false), 5000);
+  const durationLabel = (() => {
+    if ("duration_weeks" in mod && mod.duration_weeks) {
+      const days = mod.duration_weeks * 7;
+      return days > 28 ? `${mod.duration_weeks} semaines` : `${days} jours`;
+    }
+    if ("duration_minutes" in mod && mod.duration_minutes) {
+      return `${Math.round(mod.duration_minutes / 60)} heures`;
+    }
+    return "1 semaine";
+  })();
+
+  async function handleModuleComplete() {
+    setCompleting(true);
+    try {
+      if (user?.id) {
+        const { error } = await completeModule(user.id, moduleId);
+        if (error) {
+          toast("Erreur lors de la completion du module", "error");
+          setCompleting(false);
+          return;
+        }
+      }
+      setModuleCompleted(true);
+      setShowCongrats(true);
+      toast("Module termine avec succes !", "success");
+      setTimeout(() => setShowCongrats(false), 5000);
+    } catch {
+      toast("Erreur lors de la completion du module", "error");
+    } finally {
+      setCompleting(false);
+    }
+  }
+
+  async function handleSatisfaction(score: number) {
+    if (user?.id) {
+      try {
+        await submitSatisfactionScore(user.id, moduleId, score);
+        toast("Evaluation enregistree, merci !", "success");
+      } catch {
+        toast("Erreur lors de l'enregistrement", "error");
+      }
+    }
   }
 
   return (
@@ -132,9 +223,7 @@ export function ModuleContent({ moduleId, basePath }: ModuleContentProps) {
           <div className="flex flex-wrap items-center gap-2 mb-3">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-accent/10 text-accent">
               <Clock className="w-3 h-3" />
-              {mod.duration_weeks * 7 > 28
-                ? `${mod.duration_weeks} semaines`
-                : `${mod.duration_weeks * 7} jours`}
+              {durationLabel}
             </span>
             <span
               className={cn(
@@ -153,6 +242,12 @@ export function ModuleContent({ moduleId, basePath }: ModuleContentProps) {
                 ? "Entreprise"
                 : "Individuel & Entreprise"}
             </span>
+            {isAlreadyCompleted && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-success/10 text-success">
+                <CheckCircle2 className="w-3 h-3" />
+                Termine
+              </span>
+            )}
           </div>
           <h1 className="font-heading text-2xl sm:text-3xl font-bold text-dark mb-2">
             {mod.title}
@@ -167,7 +262,7 @@ export function ModuleContent({ moduleId, basePath }: ModuleContentProps) {
       <QualiopiQuestionnaires
         moduleId={moduleId}
         basePath={basePath}
-        moduleCompleted={moduleCompleted}
+        moduleCompleted={moduleCompleted || isAlreadyCompleted}
       />
 
       {/* Video/Content Section */}
@@ -182,9 +277,6 @@ export function ModuleContent({ moduleId, basePath }: ModuleContentProps) {
           <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
             <span className="text-xs text-white/70">
               Video du module - {mod.title}
-            </span>
-            <span className="text-xs text-white/70">
-              {mod.duration_weeks * 12}:00
             </span>
           </div>
         </div>
@@ -208,7 +300,7 @@ export function ModuleContent({ moduleId, basePath }: ModuleContentProps) {
       <ExerciseSection exercises={exercises} moduleTitle={mod.title} />
 
       {/* Livrables Submission */}
-      <LivrableUpload />
+      <LivrableUpload moduleId={moduleId} userId={user?.id} />
 
       {/* Congratulations message */}
       {showCongrats && (
@@ -233,16 +325,21 @@ export function ModuleContent({ moduleId, basePath }: ModuleContentProps) {
       )}
 
       {/* Module Complete Button or Satisfaction */}
-      {!moduleCompleted ? (
+      {!moduleCompleted && !isAlreadyCompleted ? (
         <button
           onClick={handleModuleComplete}
-          className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-success text-white rounded-xl font-heading font-semibold text-base hover:bg-success/90 transition-colors shadow-lg shadow-success/20"
+          disabled={completing}
+          className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-success text-white rounded-xl font-heading font-semibold text-base hover:bg-success/90 transition-colors shadow-lg shadow-success/20 disabled:opacity-60"
         >
-          <CheckCircle2 className="w-6 h-6" />
-          Module termine
+          {completing ? (
+            <Loader2 className="w-6 h-6 animate-spin" />
+          ) : (
+            <CheckCircle2 className="w-6 h-6" />
+          )}
+          {completing ? "En cours..." : "Module termine"}
         </button>
       ) : (
-        <SatisfactionForm moduleTitle={mod.title} />
+        <SatisfactionForm moduleTitle={mod.title} onSubmit={handleSatisfaction} />
       )}
     </div>
   );

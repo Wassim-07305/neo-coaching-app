@@ -41,7 +41,12 @@ function StatusBadge({ status }: { status: LivrableStatus }) {
   );
 }
 
-export function LivrableUpload() {
+interface LivrableUploadProps {
+  moduleId?: string;
+  userId?: string;
+}
+
+export function LivrableUpload({ moduleId: _moduleId, userId: _userId }: LivrableUploadProps = {}) {
   const [resumeText, setResumeText] = useState("");
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [videoFile, setVideoFile] = useState<File | null>(null);

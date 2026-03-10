@@ -884,6 +884,80 @@ export async function insertModuleProgress(data: {
   return { data: result as ModuleProgress | null, error };
 }
 
+export async function updateModuleProgress(
+  id: string,
+  data: {
+    status?: "not_started" | "in_progress" | "submitted" | "validated" | "failed";
+    satisfaction_score?: number;
+    written_summary_url?: string;
+    audio_url?: string;
+    video_url?: string;
+    submitted_at?: string;
+    validated_at?: string;
+  }
+) {
+  const supabase = createUntypedClient();
+  const { data: result, error } = await supabase
+    .from("module_progress")
+    .update(data)
+    .eq("id", id)
+    .select()
+    .single();
+  return { data: result as ModuleProgress | null, error };
+}
+
+export async function completeModule(userId: string, moduleId: string) {
+  const supabase = createUntypedClient();
+  // Check if a progress record exists
+  const { data: existing } = await supabase
+    .from("module_progress")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("module_id", moduleId)
+    .single();
+
+  if (existing) {
+    const { data: result, error } = await supabase
+      .from("module_progress")
+      .update({ status: "submitted", submitted_at: new Date().toISOString() })
+      .eq("id", existing.id)
+      .select()
+      .single();
+    return { data: result as ModuleProgress | null, error };
+  } else {
+    const { data: result, error } = await supabase
+      .from("module_progress")
+      .insert({
+        user_id: userId,
+        module_id: moduleId,
+        status: "submitted",
+        submitted_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+    return { data: result as ModuleProgress | null, error };
+  }
+}
+
+export async function submitSatisfactionScore(userId: string, moduleId: string, score: number) {
+  const supabase = createUntypedClient();
+  const { data: existing } = await supabase
+    .from("module_progress")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("module_id", moduleId)
+    .single();
+
+  if (existing) {
+    const { error } = await supabase
+      .from("module_progress")
+      .update({ satisfaction_score: score })
+      .eq("id", existing.id);
+    return { error };
+  }
+  return { error: null };
+}
+
 export async function insertGroup(data: {
   name: string;
   type: "entreprise" | "coaching_individuel" | "general";
