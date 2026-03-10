@@ -162,7 +162,10 @@ export default function CoachingDashboardPage() {
 
       {/* 5 & 6. Certificates + Satisfaction side by side on desktop */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        <CertificatesGallery certificates={certificates} />
+        <CertificatesGallery
+          certificates={certificates}
+          coacheeName={`${profile?.first_name || mockUser.first_name} ${profile?.last_name || mockUser.last_name}`}
+        />
         <SatisfactionHistory modules={modules} />
       </div>
 
