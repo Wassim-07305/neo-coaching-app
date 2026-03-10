@@ -23,6 +23,7 @@ import type {
   CalendlySettings,
   CalendlyBooking,
   Intervenant,
+  BookingFormSubmission,
 } from "@/lib/supabase/types";
 
 // Generic hook for fetching data
@@ -304,6 +305,19 @@ export function useUpcomingAppointments(coachId?: string) {
     const { data, error } = await query.order("datetime_start").limit(10);
     return { data, error };
   }, [coachId]);
+}
+
+// Booking form submissions
+export function useBookingSubmissions() {
+  const supabase = createUntypedClient();
+
+  return useSupabaseQuery<BookingFormSubmission[]>(async () => {
+    const { data, error } = await supabase
+      .from("booking_form_submissions")
+      .select("*")
+      .order("created_at", { ascending: false });
+    return { data, error };
+  }, []);
 }
 
 // ============================================================================
