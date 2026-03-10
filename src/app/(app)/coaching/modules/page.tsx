@@ -126,25 +126,31 @@ export default function CoachingModulesPage() {
     setPurchasingId(moduleId);
 
     try {
-      // TODO: Create Stripe Checkout session via API
-      // const response = await fetch('/api/stripe/checkout', {
-      //   method: 'POST',
-      //   body: JSON.stringify({ moduleId })
-      // });
-      // const { url } = await response.json();
-      // window.location.href = url;
+      const response = await fetch("/api/stripe/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ moduleId, type: "module" }),
+      });
 
-      // For now, simulate
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      toast(`Redirection vers le paiement pour "${moduleTitle}"...`, "info");
+      const data = await response.json();
 
-      // Simulate redirect (in production, redirect to Stripe)
-      setTimeout(() => {
-        toast("Mode demo : Module achete avec succes !", "success");
-        setPurchasingId(null);
-      }, 1500);
-    } catch {
-      toast("Erreur lors de la creation du paiement", "error");
+      if (!response.ok) {
+        // If Stripe is not configured, show demo mode
+        if (response.status === 500) {
+          toast(`Mode demo : Redirection Stripe non disponible pour "${moduleTitle}"`, "info");
+          setPurchasingId(null);
+          return;
+        }
+        throw new Error(data.error || "Erreur lors de la creation du paiement");
+      }
+
+      if (data.url) {
+        toast(`Redirection vers le paiement pour "${moduleTitle}"...`, "info");
+        window.location.href = data.url;
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Erreur lors de la creation du paiement";
+      toast(message, "error");
       setPurchasingId(null);
     }
   };
