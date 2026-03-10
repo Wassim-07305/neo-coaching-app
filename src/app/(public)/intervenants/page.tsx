@@ -1,15 +1,12 @@
-import type { Metadata } from "next";
+"use client";
+
 import { Navbar } from "@/components/landing/navbar";
 import { Footer } from "@/components/landing/footer";
 import { ExpertCard, type ExpertData } from "@/components/intervenants/expert-card";
+import { useIntervenants } from "@/hooks/use-supabase-data";
+import { Loader2 } from "lucide-react";
 
-export const metadata: Metadata = {
-  title: "Nos Experts | Neo-Coaching",
-  description:
-    "Decouvrez nos intervenants specialises pour completer votre parcours de coaching.",
-};
-
-const experts: ExpertData[] = [
+const mockExperts: ExpertData[] = [
   {
     id: "1",
     initials: "SB",
@@ -60,7 +57,29 @@ const experts: ExpertData[] = [
   },
 ];
 
+function getInitials(firstName: string, lastName: string): string {
+  return `${(firstName || "")[0] || ""}${(lastName || "")[0] || ""}`.toUpperCase();
+}
+
 export default function IntervenantsPage() {
+  const { data: intervenants, loading } = useIntervenants(true);
+
+  const experts: ExpertData[] =
+    intervenants && intervenants.length > 0
+      ? intervenants.map((i) => ({
+          id: i.id,
+          initials: i.user
+            ? getInitials(i.user.first_name, i.user.last_name)
+            : (i.domain || "??").substring(0, 2).toUpperCase(),
+          name: i.user
+            ? `${i.user.first_name} ${i.user.last_name}`
+            : "Expert",
+          domain: i.domain || "Coaching",
+          bio: i.bio || "",
+          rating: (i as unknown as { rating?: number }).rating ?? 5,
+        }))
+      : mockExperts;
+
   return (
     <>
       <Navbar />
@@ -82,11 +101,17 @@ export default function IntervenantsPage() {
         {/* Expert grid */}
         <section className="bg-gray-50 py-16 sm:py-20">
           <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {experts.map((expert) => (
-                <ExpertCard key={expert.id} expert={expert} />
-              ))}
-            </div>
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-accent" />
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {experts.map((expert) => (
+                  <ExpertCard key={expert.id} expert={expert} />
+                ))}
+              </div>
+            )}
           </div>
         </section>
       </main>
