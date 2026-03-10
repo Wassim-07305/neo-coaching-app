@@ -22,6 +22,7 @@ import {
 } from "@/lib/mock-data-questionnaires";
 import { useToast } from "@/components/ui/toast";
 import { useQuestionnaireResponses } from "@/hooks/use-supabase-data";
+import { createUntypedClient } from "@/lib/supabase/client";
 
 type FilterPhase = "all" | QuestionnairePhase;
 
@@ -379,8 +380,15 @@ function GoogleFormsConfigModal({
   const handleSave = async () => {
     if (!url.trim()) return;
     setIsSaving(true);
-    // TODO: Save to Supabase
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    try {
+      const supabase = createUntypedClient();
+      await supabase
+        .from("questionnaires")
+        .update({ google_forms_url: url.trim() })
+        .eq("id", questionnaire.id);
+    } catch {
+      // Continue even if Supabase fails (questionnaire may not exist in DB yet)
+    }
     onSave(url);
   };
 

@@ -11,7 +11,7 @@ export default function EntreprisesPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   // Fetch real data from Supabase
-  const { data: supabaseCompanies, loading: companiesLoading } = useCompanies();
+  const { data: supabaseCompanies, loading: companiesLoading, refetch: refetchCompanies } = useCompanies();
   const { data: profiles } = useProfiles();
 
   // Transform Supabase data to match component props
@@ -133,9 +133,8 @@ export default function EntreprisesPage() {
       {showCreateModal && (
         <CreateCompanyModal
           onClose={() => setShowCreateModal(false)}
-          onCreated={(company) => {
-            // TODO: Add to state or refetch from Supabase
-            console.log("Company created:", company);
+          onCreated={() => {
+            refetchCompanies();
           }}
         />
       )}
