@@ -23,18 +23,31 @@ export default function EntrepriseDetailPage({
   // Transform Supabase data to match component props
   const company = useMemo(() => {
     if (supabaseCompany) {
-      const employeeCount = profiles?.filter((p) => p.company_id === supabaseCompany.id).length || 0;
+      const companyProfiles = profiles?.filter((p) => p.company_id === supabaseCompany.id) || [];
+      const employeeCount = companyProfiles.length;
+
+      // Find the dirigeant from profiles
+      const dirigeant = supabaseCompany.dirigeant_id
+        ? profiles?.find((p) => p.id === supabaseCompany.dirigeant_id)
+        : profiles?.find((p) => p.role === "dirigeant");
+
+      // Extract objectives from kpi_objectives JSON
+      const objectives: string[] = supabaseCompany.kpi_objectives
+        ? Object.keys(supabaseCompany.kpi_objectives)
+        : [];
 
       return {
         id: supabaseCompany.id,
         name: supabaseCompany.name,
-        dirigeant_name: "",
-        dirigeant_email: "",
+        dirigeant_name: dirigeant
+          ? `${dirigeant.first_name} ${dirigeant.last_name}`
+          : "",
+        dirigeant_email: dirigeant?.email || "",
         employee_count: employeeCount,
         mission_start: supabaseCompany.mission_start_date || "",
         mission_end: supabaseCompany.mission_end_date || "",
         mission_status: supabaseCompany.mission_status,
-        objectives: [] as string[],
+        objectives,
         logo_placeholder: supabaseCompany.name.substring(0, 2).toUpperCase(),
       };
     }
