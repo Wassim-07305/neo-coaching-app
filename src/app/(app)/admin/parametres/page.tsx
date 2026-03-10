@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Settings,
   User,
@@ -14,11 +14,15 @@ import {
   Key,
   Save,
   ChevronRight,
+  Loader2,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
 import { useAuth } from "@/components/providers/auth-provider";
 import { createUntypedClient } from "@/lib/supabase/client";
+import { createClient } from "@/lib/supabase/client";
 
 type SettingsTab = "profil" | "plateforme" | "notifications" | "securite" | "facturation";
 
@@ -32,16 +36,23 @@ const tabs: { key: SettingsTab; label: string; icon: typeof Settings }[] = [
 
 export default function ParametresPage() {
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, profile: authProfile, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<SettingsTab>("profil");
   const [isSaving, setIsSaving] = useState(false);
 
-  // Profile state
-  const [profile, setProfile] = useState({
-    firstName: "Jean-Claude",
-    lastName: "YEKPE",
-    email: "contact@neo-coaching.fr",
-    phone: "+33 6 12 34 56 78",
+  // Password change state
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
+
+  // Profile state - pre-filled from auth
+  const [profileData, setProfileData] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
   });
 
   // Platform state
@@ -67,27 +78,90 @@ export default function ParametresPage() {
     sessionTimeout: "30",
   });
 
+  // Pre-fill profile from auth data
+  useEffect(() => {
+    if (authProfile) {
+      setProfileData({
+        firstName: authProfile.first_name || "",
+        lastName: authProfile.last_name || "",
+        email: authProfile.email || user?.email || "",
+        phone: authProfile.phone || "",
+      });
+    }
+  }, [authProfile, user]);
+
   const handleSave = async () => {
     setIsSaving(true);
     try {
       const supabase = createUntypedClient();
       if (user?.id) {
-        await supabase
-          .from("profiles")
-          .update({
-            first_name: profile.firstName,
-            last_name: profile.lastName,
-            phone: profile.phone,
-          })
-          .eq("id", user.id);
+        if (activeTab === "profil") {
+          await supabase
+            .from("profiles")
+            .update({
+              first_name: profileData.firstName,
+              last_name: profileData.lastName,
+              phone: profileData.phone,
+            })
+            .eq("id", user.id);
+        } else if (activeTab === "notifications" || activeTab === "securite") {
+          // Save settings as JSON in profile
+          const settings = {
+            notifications,
+            security: {
+              twoFactorEnabled: security.twoFactorEnabled,
+              sessionTimeout: security.sessionTimeout,
+            },
+          };
+          await supabase
+            .from("profiles")
+            .update({ settings })
+            .eq("id", user.id);
+        }
       }
       toast("Parametres enregistres avec succes", "success");
     } catch {
-      toast("Erreur lors de l&apos;enregistrement", "error");
+      toast("Erreur lors de l'enregistrement", "error");
     } finally {
       setIsSaving(false);
     }
   };
+
+  const handlePasswordChange = async () => {
+    if (newPassword.length < 8) {
+      toast("Le mot de passe doit contenir au moins 8 caracteres", "error");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast("Les mots de passe ne correspondent pas", "error");
+      return;
+    }
+    setChangingPassword(true);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) {
+        toast(error.message || "Erreur lors du changement de mot de passe", "error");
+      } else {
+        toast("Mot de passe modifie avec succes", "success");
+        setShowPasswordForm(false);
+        setNewPassword("");
+        setConfirmPassword("");
+      }
+    } catch {
+      toast("Erreur lors du changement de mot de passe", "error");
+    } finally {
+      setChangingPassword(false);
+    }
+  };
+
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-accent" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -106,7 +180,7 @@ export default function ParametresPage() {
         >
           {isSaving ? (
             <>
-              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              <Loader2 className="w-4 h-4 animate-spin" />
               Enregistrement...
             </>
           ) : (
@@ -172,9 +246,9 @@ export default function ParametresPage() {
                     </label>
                     <input
                       type="text"
-                      value={profile.firstName}
+                      value={profileData.firstName}
                       onChange={(e) =>
-                        setProfile({ ...profile, firstName: e.target.value })
+                        setProfileData({ ...profileData, firstName: e.target.value })
                       }
                       className="w-full px-4 py-3 rounded-lg border border-gray-200 bg-gray-50 text-dark focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent"
                     />
@@ -185,9 +259,9 @@ export default function ParametresPage() {
                     </label>
                     <input
                       type="text"
-                      value={profile.lastName}
+                      value={profileData.lastName}
                       onChange={(e) =>
-                        setProfile({ ...profile, lastName: e.target.value })
+                        setProfileData({ ...profileData, lastName: e.target.value })
                       }
                       className="w-full px-4 py-3 rounded-lg border border-gray-200 bg-gray-50 text-dark focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent"
                     />
@@ -201,12 +275,13 @@ export default function ParametresPage() {
                   </label>
                   <input
                     type="email"
-                    value={profile.email}
-                    onChange={(e) =>
-                      setProfile({ ...profile, email: e.target.value })
-                    }
-                    className="w-full px-4 py-3 rounded-lg border border-gray-200 bg-gray-50 text-dark focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent"
+                    value={profileData.email}
+                    disabled
+                    className="w-full px-4 py-3 rounded-lg border border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed"
                   />
+                  <p className="text-xs text-gray-400 mt-1">
+                    L&apos;email ne peut pas etre modifie depuis cette page
+                  </p>
                 </div>
 
                 <div>
@@ -216,18 +291,82 @@ export default function ParametresPage() {
                   </label>
                   <input
                     type="tel"
-                    value={profile.phone}
+                    value={profileData.phone}
                     onChange={(e) =>
-                      setProfile({ ...profile, phone: e.target.value })
+                      setProfileData({ ...profileData, phone: e.target.value })
                     }
                     className="w-full px-4 py-3 rounded-lg border border-gray-200 bg-gray-50 text-dark focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent"
                   />
                 </div>
 
                 <div className="pt-4 border-t border-gray-100">
-                  <button className="text-accent font-medium text-sm hover:underline">
-                    Changer mon mot de passe
-                  </button>
+                  {!showPasswordForm ? (
+                    <button
+                      onClick={() => setShowPasswordForm(true)}
+                      className="text-accent font-medium text-sm hover:underline"
+                    >
+                      Changer mon mot de passe
+                    </button>
+                  ) : (
+                    <div className="space-y-4">
+                      <h3 className="font-medium text-dark text-sm flex items-center gap-2">
+                        <Key className="w-4 h-4" />
+                        Changer le mot de passe
+                      </h3>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Nouveau mot de passe
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={showPassword ? "text" : "password"}
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                            placeholder="Minimum 8 caracteres"
+                            className="w-full px-4 py-3 pr-12 rounded-lg border border-gray-200 bg-gray-50 text-dark focus:outline-none focus:ring-2 focus:ring-accent/50"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                          >
+                            {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                          </button>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Confirmer le mot de passe
+                        </label>
+                        <input
+                          type="password"
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          placeholder="Repetez le mot de passe"
+                          className="w-full px-4 py-3 rounded-lg border border-gray-200 bg-gray-50 text-dark focus:outline-none focus:ring-2 focus:ring-accent/50"
+                        />
+                      </div>
+                      <div className="flex gap-3">
+                        <button
+                          onClick={handlePasswordChange}
+                          disabled={changingPassword}
+                          className="px-4 py-2 bg-accent hover:bg-accent/90 text-white rounded-lg font-medium text-sm disabled:opacity-60 transition-colors"
+                        >
+                          {changingPassword ? "Modification..." : "Modifier"}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setShowPasswordForm(false);
+                            setNewPassword("");
+                            setConfirmPassword("");
+                          }}
+                          className="px-4 py-2 border border-gray-200 text-gray-600 rounded-lg font-medium text-sm hover:bg-gray-50 transition-colors"
+                        >
+                          Annuler
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -533,7 +672,14 @@ export default function ParametresPage() {
                   <button className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors text-left">
                     Voir l&apos;historique des connexions
                   </button>
-                  <button className="w-full px-4 py-3 border border-danger/30 rounded-lg text-sm font-medium text-danger hover:bg-danger/5 transition-colors text-left">
+                  <button
+                    onClick={async () => {
+                      const supabase = createClient();
+                      await supabase.auth.signOut({ scope: "global" });
+                      window.location.href = "/connexion";
+                    }}
+                    className="w-full px-4 py-3 border border-danger/30 rounded-lg text-sm font-medium text-danger hover:bg-danger/5 transition-colors text-left"
+                  >
                     Deconnecter toutes les sessions
                   </button>
                 </div>
