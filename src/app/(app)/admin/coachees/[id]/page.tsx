@@ -1,7 +1,7 @@
 "use client";
 
-import { use, useState } from "react";
-import { Award, Download } from "lucide-react";
+import { use, useState, useMemo } from "react";
+import { Award, Download, Loader2 } from "lucide-react";
 import { CoacheeHeader } from "@/components/admin/coachee-header";
 import { KpiGauge } from "@/components/ui/kpi-gauge";
 import { KpiHistoryChart } from "@/components/admin/kpi-history-chart";
@@ -12,13 +12,11 @@ import { SatisfactionChart } from "@/components/admin/satisfaction-chart";
 import { KpiScoringModal } from "@/components/admin/kpi-scoring-modal";
 import { AssignModuleModal } from "@/components/admin/assign-module-modal";
 import { SendMessageModal } from "@/components/admin/send-message-modal";
+import { useProfile, useUserModuleProgress, useLatestKpiScore, useKpiScores, useCompany } from "@/hooks/use-supabase-data";
 import { mockCoachees } from "@/lib/mock-data";
 import { useToast } from "@/components/ui/toast";
-
-// Replace with Supabase query when ready
-function getCoacheeData(id: string) {
-  return mockCoachees.find((c) => c.id === id) || null;
-}
+import { format } from "date-fns";
+import { fr } from "date-fns/locale";
 
 export default function CoacheeDetailPage({
   params,
@@ -26,8 +24,60 @@ export default function CoacheeDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const coachee = getCoacheeData(id);
   const { toast } = useToast();
+
+  // Fetch real data from Supabase
+  const { data: profile, loading: profileLoading } = useProfile(id);
+  const { data: moduleProgress } = useUserModuleProgress(id);
+  const { data: latestKpi } = useLatestKpiScore(id);
+  const { data: kpiHistory } = useKpiScores({ user_id: id });
+  const { data: company } = useCompany(profile?.company_id || undefined);
+
+  // Fallback mock coachee
+  const mockCoachee = mockCoachees.find((c) => c.id === id);
+
+  // Transform Supabase data to match component props
+  const coachee = useMemo(() => {
+    if (profile) {
+      return {
+        id: profile.id,
+        first_name: profile.first_name,
+        last_name: profile.last_name,
+        email: profile.email,
+        avatar_url: profile.avatar_url,
+        type: (profile.coaching_type || "individuel") as "individuel" | "entreprise",
+        status: profile.status === "active" ? "actif" as const : profile.status === "inactive" ? "inactif" as const : "archive" as const,
+        company_id: profile.company_id,
+        company_name: company?.name || null,
+        start_date: profile.created_at,
+        current_module: null,
+        kpis: latestKpi
+          ? {
+              investissement: latestKpi.investissement,
+              efficacite: latestKpi.efficacite,
+              participation: latestKpi.participation,
+            }
+          : { investissement: 7, efficacite: 7, participation: 7 },
+        kpi_history: kpiHistory?.map((k) => ({
+          month: format(new Date(k.scored_at), "MMM yyyy", { locale: fr }),
+          investissement: k.investissement,
+          efficacite: k.efficacite,
+          participation: k.participation,
+        })) || [],
+        module_progress: moduleProgress?.map((mp) => ({
+          module_id: mp.module_id,
+          module_title: mp.module?.title || "Module",
+          status: mp.status === "validated" ? "complete" as const : mp.status === "in_progress" ? "en_cours" as const : "non_commence" as const,
+          satisfaction_score: mp.satisfaction_score || undefined,
+        })) || [],
+        livrables: [],
+        calls: [],
+        certificates: [],
+        last_activity: profile.updated_at,
+      };
+    }
+    return mockCoachee;
+  }, [profile, company, latestKpi, kpiHistory, moduleProgress, mockCoachee]);
 
   const [showKpiModal, setShowKpiModal] = useState(false);
   const [showAssignModule, setShowAssignModule] = useState(false);
@@ -42,6 +92,14 @@ export default function CoacheeDetailPage({
       toast("Rapport genere avec succes !", "success");
     }, 1500);
   };
+
+  if (profileLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-accent" />
+      </div>
+    );
+  }
 
   if (!coachee) {
     return (
