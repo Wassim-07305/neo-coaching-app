@@ -55,11 +55,44 @@ export function CreateCompanyModal({ onClose, onCreated }: CreateCompanyModalPro
 
     setIsCreating(true);
     try {
-      // TODO: Create company in Supabase
-      // TODO: Create dirigeant user account and send invitation email
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      // Split dirigeant name into first and last
+      const nameParts = dirigeantName.trim().split(" ");
+      const firstName = nameParts[0];
+      const lastName = nameParts.slice(1).join(" ") || firstName;
 
-      toast(`Entreprise "${name}" creee avec succes. Une invitation a ete envoyee au dirigeant.`, "success");
+      // Build KPI objectives object
+      const kpiObjectives: Record<string, boolean> = {};
+      objectives.filter((o) => o.trim()).forEach((o) => {
+        kpiObjectives[o.trim()] = false;
+      });
+
+      const response = await fetch("/api/companies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          dirigeantEmail: dirigeantEmail.trim(),
+          dirigeantFirstName: firstName,
+          dirigeantLastName: lastName,
+          missionStartDate: missionStart || null,
+          missionEndDate: missionEnd || null,
+          kpiObjectives: Object.keys(kpiObjectives).length > 0 ? kpiObjectives : null,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || "Erreur lors de la creation");
+      }
+
+      const tempPassword = result.data?.dirigeant?.tempPassword;
+      let successMessage = `Entreprise "${name}" creee avec succes.`;
+      if (tempPassword) {
+        successMessage += ` Mot de passe temporaire du dirigeant: ${tempPassword}`;
+      }
+
+      toast(successMessage, "success");
       onCreated?.({
         name,
         dirigeant_name: dirigeantName,
@@ -69,8 +102,9 @@ export function CreateCompanyModal({ onClose, onCreated }: CreateCompanyModalPro
         objectives: objectives.filter((o) => o.trim()),
       });
       onClose();
-    } catch {
-      toast("Erreur lors de la creation de l'entreprise", "error");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Erreur lors de la creation de l'entreprise";
+      toast(message, "error");
     } finally {
       setIsCreating(false);
     }
