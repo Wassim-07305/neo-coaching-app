@@ -15,9 +15,10 @@ interface Task {
 
 interface MyTasksProps {
   initialTasks: Task[];
+  onTaskUpdate?: () => void;
 }
 
-export function MyTasks({ initialTasks }: MyTasksProps) {
+export function MyTasks({ initialTasks, onTaskUpdate }: MyTasksProps) {
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const { toast } = useToast();
 

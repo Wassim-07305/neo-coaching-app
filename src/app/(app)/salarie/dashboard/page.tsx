@@ -28,7 +28,7 @@ export default function SalarieDashboardPage() {
   const { data: moduleProgress, loading: modulesLoading } = useUserModuleProgress(profile?.id);
   const { data: latestKpi } = useLatestKpiScore(profile?.id);
   const { data: kpiHistory } = useKpiScores({ user_id: profile?.id });
-  const { data: tasks } = useTasks({ user_id: profile?.id, status: "pending" });
+  const { data: tasks, refetch: refetchTasks } = useTasks({ user_id: profile?.id });
   const { data: appointments } = useUpcomingAppointments();
 
   // Transform data for components
@@ -143,7 +143,7 @@ export default function SalarieDashboardPage() {
       <MyModules modules={modules} />
 
       {/* 4. Mes Travaux */}
-      <MyTasks initialTasks={tasksData} />
+      <MyTasks initialTasks={tasksData} onTaskUpdate={refetchTasks} />
 
       {/* 5 & 6. Prochain RDV + Mon Groupe side by side on larger screens */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
