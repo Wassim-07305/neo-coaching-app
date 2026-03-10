@@ -67,8 +67,19 @@ export default function CoachingDashboardPage() {
   const delivrablesSubmitted = currentModuleLivrables.length;
   const delivrablesTotal = 3;
 
-  // Certificates (using mock for now)
-  const certificates = mockUser.certificates;
+  // Certificates from validated modules
+  const certificates = useMemo(() => {
+    if (moduleProgress && moduleProgress.length > 0) {
+      return moduleProgress
+        .filter((mp) => mp.status === "validated")
+        .map((mp) => ({
+          id: `cert-${mp.id}`,
+          module_title: mp.module?.title || "Module",
+          earned_date: mp.validated_at || mp.created_at,
+        }));
+    }
+    return mockUser.certificates;
+  }, [moduleProgress]);
 
   // Next call
   const nextCall = useMemo(() => {
