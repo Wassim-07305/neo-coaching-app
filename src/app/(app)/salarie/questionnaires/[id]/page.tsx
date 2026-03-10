@@ -2,8 +2,9 @@
 
 import { use } from "react";
 import { QuestionnaireForm } from "@/components/questionnaires/questionnaire-form";
+import { useQuestionnaire } from "@/hooks/use-supabase-data";
 import { getQuestionnaireById } from "@/lib/mock-data-questionnaires";
-import { FileText } from "lucide-react";
+import { FileText, Loader2 } from "lucide-react";
 import Link from "next/link";
 
 export default function SalarieQuestionnairePage({
@@ -12,7 +13,22 @@ export default function SalarieQuestionnairePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const questionnaire = getQuestionnaireById(id);
+
+  // Try to load from Supabase first
+  const { data: supabaseQuestionnaire, loading } = useQuestionnaire(id);
+
+  // Fallback to mock data if Supabase doesn't have it
+  const mockQuestionnaire = getQuestionnaireById(id);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-accent" />
+      </div>
+    );
+  }
+
+  const questionnaire = supabaseQuestionnaire || mockQuestionnaire;
 
   if (!questionnaire) {
     return (
