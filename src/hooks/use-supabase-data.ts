@@ -1198,6 +1198,37 @@ export async function createAppointment(data: {
   return { data: result as Appointment | null, error };
 }
 
+export async function updateAppointment(
+  id: string,
+  data: {
+    client_id?: string;
+    datetime_start?: string;
+    datetime_end?: string;
+    type?: "discovery" | "coaching" | "module_review" | "intervenant";
+    status?: "scheduled" | "completed" | "cancelled" | "no_show";
+    zoom_link?: string;
+    notes?: string;
+  }
+) {
+  const supabase = createUntypedClient();
+  const { data: result, error } = await supabase
+    .from("appointments")
+    .update(data)
+    .eq("id", id)
+    .select()
+    .single();
+  return { data: result as Appointment | null, error };
+}
+
+export async function deleteAppointment(id: string) {
+  const supabase = createUntypedClient();
+  const { error } = await supabase
+    .from("appointments")
+    .delete()
+    .eq("id", id);
+  return { error };
+}
+
 // ============================================================
 // INTERVENANT MUTATIONS
 // ============================================================

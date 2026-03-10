@@ -1,9 +1,12 @@
 import { cn } from "@/lib/utils";
-import { Video, Clock, ExternalLink } from "lucide-react";
+import { Video, Clock, ExternalLink, Edit2, XCircle, Plus } from "lucide-react";
 import type { MockAppointment, CallType } from "@/lib/mock-data";
 
 interface UpcomingAppointmentsProps {
   appointments: MockAppointment[];
+  onNewAppointment?: () => void;
+  onEditAppointment?: (id: string) => void;
+  onCancelAppointment?: (id: string) => void;
 }
 
 const typeStyles: Record<CallType, { label: string; className: string }> = {
@@ -12,7 +15,12 @@ const typeStyles: Record<CallType, { label: string; className: string }> = {
   review: { label: "Review", className: "bg-accent/10 text-accent" },
 };
 
-export function UpcomingAppointments({ appointments }: UpcomingAppointmentsProps) {
+export function UpcomingAppointments({
+  appointments,
+  onNewAppointment,
+  onEditAppointment,
+  onCancelAppointment,
+}: UpcomingAppointmentsProps) {
   // Group by date
   const grouped = appointments.reduce(
     (acc, apt) => {
@@ -27,9 +35,20 @@ export function UpcomingAppointments({ appointments }: UpcomingAppointmentsProps
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-5">
-      <h3 className="font-heading font-semibold text-sm text-dark mb-4">
-        Prochains rendez-vous
-      </h3>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="font-heading font-semibold text-sm text-dark">
+          Prochains rendez-vous
+        </h3>
+        {onNewAppointment && (
+          <button
+            onClick={onNewAppointment}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-accent hover:bg-accent/10 rounded-lg transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Nouveau
+          </button>
+        )}
+      </div>
 
       <div className="space-y-4">
         {sortedDates.map((date) => {
@@ -75,15 +94,37 @@ export function UpcomingAppointments({ appointments }: UpcomingAppointmentsProps
                           {apt.time}
                         </span>
                       </div>
-                      <a
-                        href={apt.zoom_link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-accent hover:bg-accent/10 rounded-lg transition-colors shrink-0"
-                      >
-                        <ExternalLink className="w-3 h-3" />
-                        Zoom
-                      </a>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {apt.zoom_link && apt.zoom_link !== "#" && (
+                          <a
+                            href={apt.zoom_link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-accent hover:bg-accent/10 rounded-lg transition-colors"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                            Zoom
+                          </a>
+                        )}
+                        {onEditAppointment && (
+                          <button
+                            onClick={() => onEditAppointment(apt.id)}
+                            className="p-1.5 text-gray-400 hover:text-accent hover:bg-accent/10 rounded-lg transition-colors"
+                            title="Modifier"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {onCancelAppointment && (
+                          <button
+                            onClick={() => onCancelAppointment(apt.id)}
+                            className="p-1.5 text-gray-400 hover:text-danger hover:bg-danger/10 rounded-lg transition-colors"
+                            title="Annuler"
+                          >
+                            <XCircle className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
