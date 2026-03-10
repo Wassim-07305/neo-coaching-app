@@ -9,6 +9,8 @@ import {
   getPinnedMessages,
 } from "@/lib/mock-data-community";
 import { MessageInput } from "./message-input";
+import { useMessages, insertMessage } from "@/hooks/use-supabase-data";
+import type { Message, Profile } from "@/lib/supabase/types";
 import {
   ArrowLeft,
   Users,
@@ -28,35 +30,77 @@ interface ChatThreadProps {
   currentUserId?: string;
 }
 
+function supabaseToMockMessage(
+  msg: Message & { sender?: Profile },
+  currentUserId: string
+): MockMessage {
+  const sender = msg.sender;
+  const firstName = sender?.first_name || "Utilisateur";
+  const lastName = sender?.last_name || "";
+  const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+
+  return {
+    id: msg.id,
+    groupId: msg.group_id || "",
+    senderId: msg.sender_id,
+    senderName: msg.sender_id === currentUserId ? "Vous" : `${firstName} ${lastName}`.trim(),
+    senderInitials: msg.sender_id === currentUserId ? "VS" : initials,
+    content: msg.content,
+    timestamp: msg.created_at,
+    timeLabel: new Date(msg.created_at).toLocaleTimeString("fr-FR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+    isPinned: msg.is_pinned,
+  };
+}
+
 export function ChatThread({
   group,
   onBack,
   isAdmin = false,
   currentUserId = "coach-1",
 }: ChatThreadProps) {
-  // Get initial messages based on group.id
+  // Fetch messages from Supabase
+  const { data: supabaseMessages, refetch } = useMessages(group.id);
+
+  // Build message list: prefer Supabase, fallback to mock
   const initialMessages = useMemo(() => getMessagesForGroup(group.id), [group.id]);
-  const [messages, setMessages] = useState<MockMessage[]>(initialMessages);
+
+  const messages = useMemo<MockMessage[]>(() => {
+    if (supabaseMessages && supabaseMessages.length > 0) {
+      return supabaseMessages.map((m) => supabaseToMockMessage(m, currentUserId));
+    }
+    return initialMessages;
+  }, [supabaseMessages, initialMessages, currentUserId]);
+
+  const [localMessages, setLocalMessages] = useState<MockMessage[]>([]);
   const [pinnedOpen, setPinnedOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Reset messages when group changes
+  // Reset local messages when group changes
   const [prevGroupId, setPrevGroupId] = useState(group.id);
   if (group.id !== prevGroupId) {
     setPrevGroupId(group.id);
-    setMessages(getMessagesForGroup(group.id));
+    setLocalMessages([]);
   }
 
+  const allMessages = useMemo(() => [...messages, ...localMessages], [messages, localMessages]);
+
   useEffect(() => {
-    // Scroll to bottom
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [allMessages]);
 
-  const pinnedMessages = getPinnedMessages(group.id);
+  const pinnedMessages = useMemo(() => {
+    const supabasePinned = allMessages.filter((m) => m.isPinned);
+    if (supabasePinned.length > 0) return supabasePinned;
+    return getPinnedMessages(group.id);
+  }, [allMessages, group.id]);
 
-  function handleSend(content: string) {
-    const newMsg: MockMessage = {
-      id: `msg-new-${Date.now()}`,
+  async function handleSend(content: string) {
+    // Optimistic local message
+    const tempMsg: MockMessage = {
+      id: `msg-temp-${Date.now()}`,
       groupId: group.id,
       senderId: currentUserId,
       senderName: "Vous",
@@ -69,7 +113,22 @@ export function ChatThread({
       }),
       isPinned: false,
     };
-    setMessages((prev) => [...prev, newMsg]);
+    setLocalMessages((prev) => [...prev, tempMsg]);
+
+    // Persist to Supabase
+    try {
+      await insertMessage({
+        sender_id: currentUserId,
+        content,
+        group_id: group.id,
+      });
+      // Refetch to get the real message with proper id
+      refetch();
+      // Remove the optimistic message once refetch completes
+      setLocalMessages((prev) => prev.filter((m) => m.id !== tempMsg.id));
+    } catch {
+      // Keep optimistic message on error
+    }
   }
 
   return (
@@ -145,7 +204,7 @@ export function ChatThread({
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
-        {messages.map((msg) => {
+        {allMessages.map((msg) => {
           const isOwn =
             msg.senderId === currentUserId || msg.senderName === "Vous";
           const isAdminMsg = msg.senderId === "admin";
