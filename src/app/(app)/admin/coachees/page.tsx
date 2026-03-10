@@ -9,7 +9,9 @@ import {
   Building2,
   User,
   Loader2,
+  Download,
 } from "lucide-react";
+import { useToast } from "@/components/ui/toast";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CoacheeTable } from "@/components/admin/coachee-table";
 import { CreateCoacheeModal } from "@/components/admin/create-coachee-modal";
@@ -20,6 +22,7 @@ type FilterType = "all" | "individuel" | "entreprise";
 type StatusFilter = "all" | "actif" | "inactif" | "archive";
 
 export default function CoacheesPage() {
+  const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<FilterType>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -97,6 +100,34 @@ export default function CoacheesPage() {
     entreprises: coachees.filter((c) => c.type === "entreprise").length,
   };
 
+  // Export coachees to CSV
+  const exportToCSV = () => {
+    const headers = ["Prenom", "Nom", "Email", "Type", "Entreprise", "Statut", "Modules completes", "Date inscription"];
+    const rows = filteredCoachees.map((c) => [
+      c.first_name,
+      c.last_name,
+      c.email,
+      c.type === "individuel" ? "Individuel" : "Entreprise",
+      c.company_name || "",
+      c.status,
+      c.module_progress.filter((m) => m.status === "complete").length,
+      c.start_date ? new Date(c.start_date).toLocaleDateString("fr-FR") : "",
+    ]);
+
+    const csvContent = [headers, ...rows]
+      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+
+    const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `coachees-${new Date().toISOString().split("T")[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast("Export CSV telecharge", "success");
+  };
+
   if (profilesLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -116,13 +147,23 @@ export default function CoacheesPage() {
             <p className="text-sm text-gray-500">{stats.total} personnes accompagnees</p>
           </div>
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent/90 text-white rounded-lg font-medium transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Nouveau coachee
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={exportToCSV}
+            disabled={filteredCoachees.length === 0}
+            className="inline-flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-600 rounded-lg font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Download className="w-4 h-4" />
+            <span className="hidden sm:inline">Exporter CSV</span>
+          </button>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent/90 text-white rounded-lg font-medium transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Nouveau coachee
+          </button>
+        </div>
       </div>
 
       {/* Stats cards */}
