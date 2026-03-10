@@ -302,6 +302,24 @@ export interface CalendlyBooking {
   created_at: string;
 }
 
+export type LivrableType = "ecrit" | "audio" | "video";
+export type LivrableStatus = "en_attente" | "soumis" | "valide" | "refuse";
+
+export interface Livrable {
+  id: string;
+  user_id: string;
+  module_id: string;
+  module_progress_id: string | null;
+  type: LivrableType;
+  file_name: string;
+  file_url: string;
+  status: LivrableStatus;
+  coach_feedback: string | null;
+  submitted_at: string;
+  reviewed_at: string | null;
+  created_at: string;
+}
+
 export type InvitationTokenStatus = "pending" | "accepted" | "expired" | "revoked";
 
 export interface InvitationToken {
@@ -387,6 +405,11 @@ export type Database = {
         Row: Intervenant;
         Insert: Partial<Intervenant> & Pick<Intervenant, "user_id" | "domain" | "hourly_rate_cents" | "packages">;
         Update: Partial<Intervenant>;
+      };
+      livrables: {
+        Row: Livrable;
+        Insert: Partial<Livrable> & Pick<Livrable, "user_id" | "module_id" | "type" | "file_name" | "file_url">;
+        Update: Partial<Livrable>;
       };
       notifications: {
         Row: Notification;

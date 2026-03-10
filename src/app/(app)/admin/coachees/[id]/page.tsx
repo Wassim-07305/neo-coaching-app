@@ -12,7 +12,8 @@ import { SatisfactionChart } from "@/components/admin/satisfaction-chart";
 import { KpiScoringModal } from "@/components/admin/kpi-scoring-modal";
 import { AssignModuleModal } from "@/components/admin/assign-module-modal";
 import { SendMessageModal } from "@/components/admin/send-message-modal";
-import { useProfile, useUserModuleProgress, useLatestKpiScore, useKpiScores, useCompany, useAppointments } from "@/hooks/use-supabase-data";
+import { useProfile, useUserModuleProgress, useLatestKpiScore, useKpiScores, useCompany, useAppointments, useLivrables } from "@/hooks/use-supabase-data";
+import type { AdminLivrable } from "@/components/admin/livrables-list";
 import { mockCoachees } from "@/lib/mock-data";
 import { useToast } from "@/components/ui/toast";
 import { format } from "date-fns";
@@ -36,6 +37,7 @@ export default function CoacheeDetailPage({
   const { data: kpiHistory } = useKpiScores({ user_id: id });
   const { data: company } = useCompany(profile?.company_id || undefined);
   const { data: appointments } = useAppointments({ client_id: id });
+  const { data: supabaseLivrables } = useLivrables({ user_id: id });
 
   // Fallback mock coachee
   const mockCoachee = mockCoachees.find((c) => c.id === id);
@@ -96,6 +98,30 @@ export default function CoacheeDetailPage({
     return mockCoachee;
   }, [profile, company, latestKpi, kpiHistory, moduleProgress, appointments, mockCoachee]);
 
+  // Transform Supabase livrables to admin format
+  const coacheeLivrables = useMemo<AdminLivrable[]>(() => {
+    if (supabaseLivrables && supabaseLivrables.length > 0) {
+      return supabaseLivrables.map((l) => ({
+        id: l.id,
+        module_title: l.module?.title || "Module",
+        type: l.type,
+        submission_date: l.submitted_at,
+        status: l.status,
+        file_name: l.file_name,
+        file_url: l.file_url,
+      }));
+    }
+    // Fallback to mock coachee livrables
+    return (coachee?.livrables || []).map((l) => ({
+      id: l.id,
+      module_title: l.module_title,
+      type: l.type as "ecrit" | "audio" | "video",
+      submission_date: l.submission_date,
+      status: l.status as "soumis" | "en_attente" | "valide",
+      file_name: l.file_name,
+    }));
+  }, [supabaseLivrables, coachee]);
+
   const [showKpiModal, setShowKpiModal] = useState(false);
   const [showAssignModule, setShowAssignModule] = useState(false);
   const [showSendMessage, setShowSendMessage] = useState(false);
@@ -130,9 +156,9 @@ export default function CoacheeDetailPage({
           status: m.status as "complete" | "en_cours" | "non_commence" | "a_venir",
           satisfactionScore: m.satisfaction_score,
         })),
-        livrables: coachee.livrables.map((l) => ({
+        livrables: coacheeLivrables.map((l) => ({
           moduleTitle: l.module_title,
-          type: l.type as "ecrit" | "audio" | "video",
+          type: l.type,
           submissionDate: l.submission_date,
           status: l.status as "soumis" | "en_attente" | "valide",
           fileName: l.file_name,
@@ -235,7 +261,7 @@ export default function CoacheeDetailPage({
 
       {/* Livrables and Calls */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <LivrablesList livrables={coachee.livrables} />
+        <LivrablesList livrables={coacheeLivrables} />
         <CallHistory calls={coachee.calls} />
       </div>
 

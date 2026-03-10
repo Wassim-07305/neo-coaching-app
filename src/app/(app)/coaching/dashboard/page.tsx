@@ -13,7 +13,9 @@ import {
   useUserModuleProgress,
   useModules,
   useUpcomingAppointments,
+  useLivrables,
 } from "@/hooks/use-supabase-data";
+import type { DisplayLivrable } from "@/components/coaching/livrables-section";
 import { mockCoachees, mockModules } from "@/lib/mock-data";
 import { useMemo } from "react";
 import { format, differenceInDays } from "date-fns";
@@ -26,6 +28,7 @@ export default function CoachingDashboardPage() {
   const { data: moduleProgress, loading: modulesLoading } = useUserModuleProgress(profile?.id);
   const { data: allModules } = useModules();
   const { data: appointments } = useUpcomingAppointments();
+  const { data: supabaseLivrables } = useLivrables({ user_id: profile?.id });
 
   // Fallback to mock user if not logged in (Isabelle Fontaine - individual coachee)
   const mockUser = mockCoachees[7];
@@ -61,8 +64,26 @@ export default function CoachingDashboardPage() {
     return mockModules.find((m) => m.title === currentModuleName);
   }, [currentModuleName, allModules]);
 
-  // Livrables (using mock for now as we don't have real livrables data structure)
-  const livrables = mockUser.livrables;
+  // Livrables from Supabase with mock fallback
+  const livrables = useMemo<DisplayLivrable[]>(() => {
+    if (supabaseLivrables && supabaseLivrables.length > 0) {
+      return supabaseLivrables.map((l) => ({
+        id: l.id,
+        type: l.type,
+        file_name: l.file_name,
+        status: l.status,
+        module_title: l.module?.title || "",
+      }));
+    }
+    return mockUser.livrables.map((l) => ({
+      id: l.id,
+      type: l.type,
+      file_name: l.file_name,
+      status: l.status,
+      module_title: l.module_title,
+    }));
+  }, [supabaseLivrables]);
+
   const currentModuleLivrables = livrables.filter((l) => l.module_title === currentModuleName);
   const delivrablesSubmitted = currentModuleLivrables.length;
   const delivrablesTotal = 3;

@@ -26,6 +26,7 @@ import type {
   BookingFormSubmission,
   InvitationToken,
   Availability,
+  Livrable,
 } from "@/lib/supabase/types";
 
 // Generic hook for fetching data
@@ -1350,5 +1351,68 @@ export async function saveAvailabilities(
   }));
 
   const { error } = await supabase.from("availabilities").insert(rows);
+  return { error };
+}
+
+// ============================================================
+// LIVRABLES
+// ============================================================
+
+export function useLivrables(filters: { user_id?: string; module_id?: string } = {}) {
+  const supabase = createUntypedClient();
+
+  return useSupabaseQuery<(Livrable & { module?: Module })[]>(async () => {
+    let query = supabase
+      .from("livrables")
+      .select("*, module:modules(id, title)")
+      .order("submitted_at", { ascending: false });
+
+    if (filters.user_id) query = query.eq("user_id", filters.user_id);
+    if (filters.module_id) query = query.eq("module_id", filters.module_id);
+
+    const { data, error } = await query;
+    return { data, error };
+  }, [filters.user_id, filters.module_id]);
+}
+
+export async function createLivrable(data: {
+  user_id: string;
+  module_id: string;
+  module_progress_id?: string;
+  type: "ecrit" | "audio" | "video";
+  file_name: string;
+  file_url: string;
+}) {
+  const supabase = createUntypedClient();
+  const { data: result, error } = await supabase
+    .from("livrables")
+    .insert({
+      user_id: data.user_id,
+      module_id: data.module_id,
+      module_progress_id: data.module_progress_id || null,
+      type: data.type,
+      file_name: data.file_name,
+      file_url: data.file_url,
+      status: "soumis",
+    })
+    .select()
+    .single();
+  return { data: result as Livrable | null, error };
+}
+
+export async function updateLivrableStatus(
+  livrableId: string,
+  status: "valide" | "refuse",
+  feedback?: string
+) {
+  const supabase = createUntypedClient();
+  const { error } = await supabase
+    .from("livrables")
+    .update({
+      status,
+      coach_feedback: feedback || null,
+      reviewed_at: new Date().toISOString(),
+    })
+    .eq("id", livrableId);
   return { error };
 }
