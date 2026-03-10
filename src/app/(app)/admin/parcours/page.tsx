@@ -17,7 +17,9 @@ import {
   Filter,
   MoreVertical,
   Loader2,
+  Download,
 } from "lucide-react";
+import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import {
   getAllAssignedParcours,
@@ -45,6 +47,7 @@ interface DisplayParcours {
 }
 
 export default function ParcoursPage() {
+  const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
   const [showAssignModal, setShowAssignModal] = useState(false);
@@ -116,6 +119,48 @@ export default function ParcoursPage() {
 
   const isLoading = parcoursLoading || statsLoading;
 
+  // Export parcours to CSV
+  const exportToCSV = () => {
+    const headers = [
+      "Titre",
+      "Assigne a",
+      "Entreprise",
+      "Date debut",
+      "Date fin",
+      "Statut",
+      "Progression %",
+      "Modules termines",
+    ];
+    const rows = filteredParcours.map((p) => {
+      const completedModules = p.modules.filter((m) => m.status === "completed").length;
+      const totalModules = p.modules.length;
+      const statusLabel = parcoursStatusConfig[p.status]?.label || p.status;
+      return [
+        p.title,
+        p.assignedToName,
+        p.companyName || "",
+        format(new Date(p.startDate), "dd/MM/yyyy"),
+        format(new Date(p.endDate), "dd/MM/yyyy"),
+        statusLabel,
+        p.progress,
+        totalModules > 0 ? `${completedModules}/${totalModules}` : "N/A",
+      ];
+    });
+
+    const csvContent = [headers, ...rows]
+      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+
+    const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `parcours-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast("Export CSV telecharge", "success");
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -139,13 +184,23 @@ export default function ParcoursPage() {
             </p>
           </div>
         </div>
-        <button
-          onClick={() => setShowAssignModal(true)}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent/90 text-white rounded-lg font-medium transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Assigner un parcours
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={exportToCSV}
+            disabled={filteredParcours.length === 0}
+            className="inline-flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-600 rounded-lg font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Download className="w-4 h-4" />
+            <span className="hidden sm:inline">Exporter</span>
+          </button>
+          <button
+            onClick={() => setShowAssignModal(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent/90 text-white rounded-lg font-medium transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Assigner un parcours
+          </button>
+        </div>
       </div>
 
       {/* Stats cards */}

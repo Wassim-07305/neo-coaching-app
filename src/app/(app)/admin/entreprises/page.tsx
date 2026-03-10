@@ -1,14 +1,21 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Building2, Plus, Users, TrendingUp, CheckCircle, Loader2 } from "lucide-react";
+import { format } from "date-fns";
+import { Building2, Plus, Users, TrendingUp, CheckCircle, Loader2, Download, Search, Filter } from "lucide-react";
 import { CompanyList } from "@/components/admin/company-list";
 import { CreateCompanyModal } from "@/components/admin/create-company-modal";
 import { useCompanies, useProfiles } from "@/hooks/use-supabase-data";
+import { useToast } from "@/components/ui/toast";
 import { mockCompanies } from "@/lib/mock-data";
 
+type StatusFilter = "all" | "active" | "completed" | "pending";
+
 export default function EntreprisesPage() {
+  const { toast } = useToast();
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
   // Fetch real data from Supabase
   const { data: supabaseCompanies, loading: companiesLoading, refetch: refetchCompanies } = useCompanies();
@@ -38,12 +45,46 @@ export default function EntreprisesPage() {
     return mockCompanies;
   }, [supabaseCompanies, profiles]);
 
+  // Filter companies
+  const filteredCompanies = useMemo(() => {
+    return companies.filter((c) => {
+      const matchesSearch = search === "" || c.name.toLowerCase().includes(search.toLowerCase());
+      const matchesStatus = statusFilter === "all" || c.mission_status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [companies, search, statusFilter]);
+
   // Stats
   const stats = {
     total: companies.length,
     active: companies.filter((c) => c.mission_status === "active").length,
     completed: companies.filter((c) => c.mission_status === "completed").length,
     totalEmployees: companies.reduce((sum, c) => sum + c.employee_count, 0),
+  };
+
+  // Export to CSV
+  const exportToCSV = () => {
+    const headers = ["Nom", "Salaries", "Statut mission", "Date debut", "Date fin"];
+    const rows = filteredCompanies.map((c) => [
+      c.name,
+      c.employee_count,
+      c.mission_status === "active" ? "Active" : c.mission_status === "completed" ? "Terminee" : "En attente",
+      c.mission_start ? format(new Date(c.mission_start), "dd/MM/yyyy") : "",
+      c.mission_end ? format(new Date(c.mission_end), "dd/MM/yyyy") : "",
+    ]);
+
+    const csvContent = [headers, ...rows]
+      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+
+    const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `entreprises-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast("Export CSV telecharge", "success");
   };
 
   if (companiesLoading) {
@@ -69,13 +110,50 @@ export default function EntreprisesPage() {
             </p>
           </div>
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-accent rounded-lg hover:bg-accent/90 transition-colors self-start sm:self-auto"
-        >
-          <Plus className="w-4 h-4" />
-          Ajouter une entreprise
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={exportToCSV}
+            disabled={filteredCompanies.length === 0}
+            className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Download className="w-4 h-4" />
+            <span className="hidden sm:inline">Exporter</span>
+          </button>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-accent rounded-lg hover:bg-accent/90 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Ajouter
+          </button>
+        </div>
+      </div>
+
+      {/* Search and filters */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Rechercher une entreprise..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <Filter className="w-4 h-4 text-gray-400" />
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+            className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent bg-white"
+          >
+            <option value="all">Tous les statuts</option>
+            <option value="active">Missions actives</option>
+            <option value="completed">Terminees</option>
+            <option value="pending">En attente</option>
+          </select>
+        </div>
       </div>
 
       {/* Stats cards */}
@@ -127,7 +205,7 @@ export default function EntreprisesPage() {
       </div>
 
       {/* Company list */}
-      <CompanyList companies={companies} />
+      <CompanyList companies={filteredCompanies} />
 
       {/* Create modal */}
       {showCreateModal && (
