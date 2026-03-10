@@ -21,14 +21,8 @@ import {
   useModuleProgress,
   useProfiles,
 } from "@/hooks/use-supabase-data";
+import { subMonths, endOfMonth } from "date-fns";
 import { mockCompanies, mockCoachees, getCompanyAverageKpis } from "@/lib/mock-data";
-
-// Mock reports (no Supabase table yet)
-const mockReports = [
-  { id: "r-1", title: "Rapport Fevrier 2026", date: "2026-02-28", period: "Fevrier 2026" },
-  { id: "r-2", title: "Rapport Janvier 2026", date: "2026-01-31", period: "Janvier 2026" },
-  { id: "r-3", title: "Rapport Decembre 2025", date: "2025-12-31", period: "Decembre 2025" },
-];
 
 export default function DirigeantDashboardPage() {
   const { profile, loading: authLoading } = useAuth();
@@ -228,6 +222,23 @@ export default function DirigeantDashboardPage() {
     });
   }, [companyEmployees, moduleProgressData]);
 
+  // Generate dynamic reports for the last 3 months
+  const recentReports = useMemo(() => {
+    const now = new Date();
+    return [0, 1, 2].map((offset) => {
+      const d = subMonths(now, offset + 1);
+      const end = endOfMonth(d);
+      const period = format(d, "MMMM yyyy", { locale: fr });
+      const capitalizedPeriod = period.charAt(0).toUpperCase() + period.slice(1);
+      return {
+        id: `r-${offset}`,
+        title: `Rapport ${capitalizedPeriod}`,
+        date: format(end, "yyyy-MM-dd"),
+        period: capitalizedPeriod,
+      };
+    });
+  }, []);
+
   const isLoading = authLoading || companyLoading || statsLoading;
 
   if (isLoading) {
@@ -309,7 +320,7 @@ export default function DirigeantDashboardPage() {
 
       {/* 7 & 8. Reports + Message Jean-Claude side by side on desktop */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <ReportsPreview reports={mockReports} />
+        <ReportsPreview reports={recentReports} />
 
         {/* Message Jean-Claude */}
         <div className="bg-white rounded-xl border border-gray-200 p-5 md:p-6 flex flex-col">
