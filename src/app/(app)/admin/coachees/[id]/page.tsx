@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState, useMemo } from "react";
+import { use, useState, useMemo, useCallback } from "react";
 import { Award, Download, Loader2 } from "lucide-react";
 import { CoacheeHeader } from "@/components/admin/coachee-header";
 import { KpiGauge } from "@/components/ui/kpi-gauge";
@@ -17,6 +17,9 @@ import { mockCoachees } from "@/lib/mock-data";
 import { useToast } from "@/components/ui/toast";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import { pdf } from "@react-pdf/renderer";
+import { IndividualReportPDF } from "@/components/reports/individual-report-pdf";
+import type { IndividualReportData } from "@/components/reports/individual-report-pdf";
 
 export default function CoacheeDetailPage({
   params,
@@ -84,14 +87,69 @@ export default function CoacheeDetailPage({
   const [showSendMessage, setShowSendMessage] = useState(false);
   const [kpis, setKpis] = useState(coachee?.kpis || { investissement: 0, efficacite: 0, participation: 0 });
 
-  const handleGenerateReport = () => {
-    // TODO: Generate PDF with @react-pdf/renderer
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+
+  const handleGenerateReport = useCallback(async () => {
+    if (!coachee) return;
+
+    setIsGeneratingPdf(true);
     toast("Generation du rapport PDF en cours...", "info");
-    // Simulate generation
-    setTimeout(() => {
-      toast("Rapport genere avec succes !", "success");
-    }, 1500);
-  };
+
+    try {
+      const reportData: IndividualReportData = {
+        firstName: coachee.first_name,
+        lastName: coachee.last_name,
+        email: coachee.email,
+        type: coachee.type,
+        companyName: coachee.company_name,
+        startDate: format(new Date(coachee.start_date), "d MMMM yyyy", { locale: fr }),
+        currentModule: coachee.module_progress.find((m) => m.status === "en_cours")?.module_title || null,
+        kpis: kpis,
+        kpiHistory: coachee.kpi_history.map((k) => ({
+          month: k.month,
+          investissement: k.investissement,
+          efficacite: k.efficacite,
+          participation: k.participation,
+        })),
+        moduleProgress: coachee.module_progress.map((m) => ({
+          moduleTitle: m.module_title,
+          status: m.status as "complete" | "en_cours" | "non_commence" | "a_venir",
+          satisfactionScore: m.satisfaction_score,
+        })),
+        livrables: coachee.livrables.map((l) => ({
+          moduleTitle: l.module_title,
+          type: l.type as "ecrit" | "audio" | "video",
+          submissionDate: l.submission_date,
+          status: l.status as "soumis" | "en_attente" | "valide",
+          fileName: l.file_name,
+        })),
+        satisfactionScores: coachee.module_progress
+          .filter((m) => m.satisfaction_score != null)
+          .map((m) => ({
+            moduleTitle: m.module_title,
+            score: m.satisfaction_score!,
+          })),
+        coachNotes: "",
+      };
+
+      const blob = await pdf(<IndividualReportPDF data={reportData} />).toBlob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `rapport-${coachee.first_name}-${coachee.last_name}-${format(new Date(), "yyyy-MM-dd")}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast("Rapport PDF telecharge avec succes !", "success");
+    } catch (err) {
+      console.error("PDF generation error:", err);
+      toast("Erreur lors de la generation du rapport", "error");
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  }, [coachee, kpis, toast]);
 
   if (profileLoading) {
     return (
