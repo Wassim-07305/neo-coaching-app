@@ -1135,6 +1135,38 @@ export async function createNotification(data: {
 }
 
 // ============================================================
+// APPOINTMENT MUTATIONS
+// ============================================================
+
+export async function createAppointment(data: {
+  client_id?: string;
+  prospect_data?: Record<string, unknown>;
+  coach_id: string;
+  datetime_start: string;
+  datetime_end: string;
+  type: "discovery" | "coaching" | "module_review" | "intervenant";
+  notes?: string;
+}) {
+  const supabase = createUntypedClient();
+  const { data: result, error } = await supabase
+    .from("appointments")
+    .insert({
+      client_id: data.client_id || null,
+      prospect_data: data.prospect_data || null,
+      coach_id: data.coach_id,
+      datetime_start: data.datetime_start,
+      datetime_end: data.datetime_end,
+      type: data.type,
+      status: "scheduled",
+      zoom_link: null,
+      notes: data.notes || null,
+    })
+    .select()
+    .single();
+  return { data: result as Appointment | null, error };
+}
+
+// ============================================================
 // INTERVENANT MUTATIONS
 // ============================================================
 
