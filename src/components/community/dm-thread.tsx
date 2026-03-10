@@ -50,8 +50,8 @@ export function DmThread({
   onBack,
   currentUserId = "coach-1",
 }: DmThreadProps) {
-  // Fetch DM messages from Supabase if recipientId is provided
-  const { data: supabaseMessages, refetch } = useMessages(undefined, recipientId);
+  // Fetch DM messages from Supabase scoped to the current user + recipient
+  const { data: supabaseMessages, refetch } = useMessages(undefined, recipientId, currentUserId);
 
   const messages = useMemo<MockMessage[]>(() => {
     if (supabaseMessages && supabaseMessages.length > 0) {

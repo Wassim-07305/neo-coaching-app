@@ -369,7 +369,7 @@ export function useGroupMembers(groupId: string | undefined) {
   }, [groupId]);
 }
 
-export function useMessages(groupId?: string, recipientId?: string) {
+export function useMessages(groupId?: string, recipientId?: string, currentUserId?: string) {
   const supabase = createUntypedClient();
 
   return useSupabaseQuery<(Message & { sender: Profile })[]>(async () => {
@@ -377,13 +377,18 @@ export function useMessages(groupId?: string, recipientId?: string) {
 
     if (groupId) {
       query = query.eq("group_id", groupId);
+    } else if (recipientId && currentUserId) {
+      // Filter DMs to only the conversation between the current user and the recipient
+      query = query.is("group_id", null).or(
+        `and(sender_id.eq.${currentUserId},recipient_id.eq.${recipientId}),and(sender_id.eq.${recipientId},recipient_id.eq.${currentUserId})`
+      );
     } else if (recipientId) {
       query = query.or(`recipient_id.eq.${recipientId},sender_id.eq.${recipientId}`);
     }
 
     const { data, error } = await query.order("created_at", { ascending: true });
     return { data, error };
-  }, [groupId, recipientId]);
+  }, [groupId, recipientId, currentUserId]);
 }
 
 // ============================================================================

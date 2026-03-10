@@ -105,10 +105,11 @@ export default function DirigeantMessagesPage() {
     ? `${coach.first_name?.charAt(0) || "J"}${coach.last_name?.charAt(0) || "C"}`.toUpperCase()
     : "JC";
 
-  // Fetch DM messages with the coach
+  // Fetch DM messages with the coach (scoped to current user)
   const { data: supabaseMessages, loading, refetch } = useMessages(
     undefined,
-    coachId
+    coachId,
+    currentUserId || undefined
   );
 
   const messages = useMemo<DisplayMessage[]>(() => {
