@@ -26,8 +26,6 @@ import {
 import { cn } from "@/lib/utils";
 import {
   mockCalendlyEvents,
-  getUpcomingCalendlyEvents,
-  getPastCalendlyEvents,
   getCalendlyStats,
   locationTypeLabels,
   type CalendlyEvent,

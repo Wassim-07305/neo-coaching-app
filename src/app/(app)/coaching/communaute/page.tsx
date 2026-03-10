@@ -15,7 +15,8 @@ export default function CoachingCommunautePage() {
   // Fetch groups for current user
   const { data: supabaseGroups, loading: groupsLoading } = useGroups(user?.id);
   const { data: groupMembers } = useGroupMembers(activeGroupId || undefined);
-  const { data: messages } = useMessages(activeGroupId || undefined);
+  // Messages are fetched but used internally by ChatThread component
+  useMessages(activeGroupId || undefined);
 
   // Transform Supabase data to match MockGroup props, or fallback to mock
   const userGroups = useMemo(() => {
