@@ -14,6 +14,8 @@ import {
   Check,
   Briefcase,
   Loader2,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { KpiGauge } from "@/components/ui/kpi-gauge";
@@ -40,6 +42,10 @@ export default function SalarieProfilPage() {
   const [phone, setPhone] = useState("");
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   // Sync form fields when profile loads
   useEffect(() => {
@@ -96,6 +102,31 @@ export default function SalarieProfilPage() {
       toast("Erreur lors de la sauvegarde", "error");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handlePasswordChange() {
+    if (newPassword.length < 8) {
+      toast("Le mot de passe doit contenir au moins 8 caracteres", "error");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast("Les mots de passe ne correspondent pas", "error");
+      return;
+    }
+
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) {
+        toast(error.message, "error");
+      } else {
+        toast("Mot de passe modifie avec succes", "success");
+        setNewPassword("");
+        setConfirmPassword("");
+        setShowPasswordForm(false);
+      }
+    } catch {
+      toast("Erreur lors du changement de mot de passe", "error");
     }
   }
 
@@ -313,7 +344,10 @@ export default function SalarieProfilPage() {
           Mon compte
         </h3>
         <div className="flex flex-col sm:flex-row gap-3">
-          <button className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-gray-200 text-sm font-medium text-dark hover:bg-gray-50 transition-colors">
+          <button
+            onClick={() => setShowPasswordForm(!showPasswordForm)}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-gray-200 text-sm font-medium text-dark hover:bg-gray-50 transition-colors"
+          >
             <Lock className="w-4 h-4 text-gray-500" />
             Changer le mot de passe
           </button>
@@ -325,6 +359,69 @@ export default function SalarieProfilPage() {
             Se deconnecter
           </button>
         </div>
+
+        {/* Password change form */}
+        {showPasswordForm && (
+          <div className="mt-4 pt-4 border-t border-gray-100 space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">
+                Nouveau mot de passe
+              </label>
+              <div className="relative">
+                <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Minimum 8 caracteres"
+                  className="w-full pl-9 pr-10 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/30 text-dark"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">
+                Confirmer le mot de passe
+              </label>
+              <div className="relative">
+                <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Retapez le mot de passe"
+                  className="w-full pl-9 pr-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/30 text-dark"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={handlePasswordChange}
+                disabled={!newPassword || !confirmPassword}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Save className="w-4 h-4" />
+                Enregistrer
+              </button>
+              <button
+                onClick={() => {
+                  setShowPasswordForm(false);
+                  setNewPassword("");
+                  setConfirmPassword("");
+                }}
+                className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                Annuler
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Save button */}

@@ -6,12 +6,17 @@ import { CoacheeTable } from "@/components/admin/coachee-table";
 import { EnterpriseKpis } from "@/components/admin/enterprise-kpis";
 import { ActivityFeed } from "@/components/admin/activity-feed";
 import { useAdminDashboardStats, useProfiles, useCompanies, useModuleProgress, useKpiScores } from "@/hooks/use-supabase-data";
-import { useMemo } from "react";
+import { useMemo, useCallback } from "react";
 import type { MockActivity } from "@/lib/mock-data";
 import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
+import { useRouter } from "next/navigation";
+import { useToast } from "@/components/ui/toast";
 
 export default function AdminDashboardPage() {
+  const router = useRouter();
+  const { toast } = useToast();
+
   // Fetch real data from Supabase
   const { data: stats, loading: statsLoading } = useAdminDashboardStats();
   const { data: profiles, loading: profilesLoading } = useProfiles({ status: "active" });
@@ -130,6 +135,38 @@ export default function AdminDashboardPage() {
     return items.slice(0, 10);
   }, [moduleProgressList, profiles]);
 
+  const exportToCSV = useCallback(() => {
+    if (coachees.length === 0) {
+      toast("Aucun coachee a exporter", "warning");
+      return;
+    }
+
+    const headers = ["Prenom", "Nom", "Email", "Type", "Entreprise", "Statut", "Modules completes", "Date inscription"];
+    const rows = coachees.map((c) => [
+      c.first_name,
+      c.last_name,
+      c.email,
+      c.type === "individuel" ? "Individuel" : "Entreprise",
+      c.company_name || "",
+      c.status,
+      c.module_progress.filter((m) => m.status === "complete").length,
+      c.start_date ? new Date(c.start_date).toLocaleDateString("fr-FR") : "",
+    ]);
+
+    const csvContent = [headers, ...rows]
+      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+
+    const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `coachees-${new Date().toISOString().split("T")[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast("Export CSV telecharge", "success");
+  }, [coachees, toast]);
+
   const isLoading = statsLoading || profilesLoading || companiesLoading;
 
   if (isLoading) {
@@ -151,11 +188,18 @@ export default function AdminDashboardPage() {
           </h1>
         </div>
         <div className="flex items-center gap-2">
-          <button className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+          <button
+            onClick={exportToCSV}
+            disabled={coachees.length === 0}
+            className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
             <Download className="w-4 h-4" />
             <span className="hidden sm:inline">Exporter CSV</span>
           </button>
-          <button className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-accent rounded-lg hover:bg-accent/90 transition-colors">
+          <button
+            onClick={() => router.push("/admin/coachees")}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-accent rounded-lg hover:bg-accent/90 transition-colors"
+          >
             <UserPlus className="w-4 h-4" />
             <span className="hidden sm:inline">Ajouter un coachee</span>
           </button>
