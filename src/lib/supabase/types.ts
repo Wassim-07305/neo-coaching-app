@@ -318,6 +318,17 @@ export interface InvitationToken {
   created_at: string;
 }
 
+export interface Availability {
+  id: string;
+  user_id: string;
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 // Supabase Database type for typed queries
 export type Database = {
   public: {
@@ -436,6 +447,11 @@ export type Database = {
         Row: InvitationToken;
         Insert: Partial<InvitationToken> & Pick<InvitationToken, "token" | "company_id" | "created_by" | "role" | "expires_at">;
         Update: Partial<InvitationToken>;
+      };
+      availabilities: {
+        Row: Availability;
+        Insert: Partial<Availability> & Pick<Availability, "user_id" | "day_of_week" | "start_time" | "end_time">;
+        Update: Partial<Availability>;
       };
     };
   };

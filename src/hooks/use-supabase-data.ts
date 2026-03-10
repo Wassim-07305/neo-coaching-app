@@ -25,6 +25,7 @@ import type {
   Intervenant,
   BookingFormSubmission,
   InvitationToken,
+  Availability,
 } from "@/lib/supabase/types";
 
 // Generic hook for fetching data
@@ -1039,4 +1040,52 @@ export function useCompanyInvitations(companyId?: string) {
       .order("created_at", { ascending: false });
     return { data, error };
   }, [companyId]);
+}
+
+// ============================================================
+// AVAILABILITIES
+// ============================================================
+
+export function useAvailabilities(userId?: string) {
+  const supabase = createUntypedClient();
+
+  return useSupabaseQuery<Availability[]>(async () => {
+    if (!userId) return { data: [], error: null };
+    const { data, error } = await supabase
+      .from("availabilities")
+      .select("*")
+      .eq("user_id", userId)
+      .order("day_of_week", { ascending: true })
+      .order("start_time", { ascending: true });
+    return { data, error };
+  }, [userId]);
+}
+
+export async function saveAvailabilities(
+  userId: string,
+  availabilities: { day_of_week: number; start_time: string; end_time: string; is_active: boolean }[]
+) {
+  const supabase = createUntypedClient();
+
+  // Delete existing availabilities for this user
+  const { error: deleteError } = await supabase
+    .from("availabilities")
+    .delete()
+    .eq("user_id", userId);
+
+  if (deleteError) return { error: deleteError };
+
+  // Insert new ones
+  if (availabilities.length === 0) return { error: null };
+
+  const rows = availabilities.map((a) => ({
+    user_id: userId,
+    day_of_week: a.day_of_week,
+    start_time: a.start_time,
+    end_time: a.end_time,
+    is_active: a.is_active,
+  }));
+
+  const { error } = await supabase.from("availabilities").insert(rows);
+  return { error };
 }

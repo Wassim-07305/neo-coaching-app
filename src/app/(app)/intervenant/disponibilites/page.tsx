@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
-import { Clock, Plus, Save, Trash2, Check } from "lucide-react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { Clock, Plus, Save, Trash2, Check, Loader2 } from "lucide-react";
 import {
   getIntervenantDisponibilites,
   getDayName,
@@ -9,23 +9,50 @@ import {
 } from "@/lib/mock-data-intervenant";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
-
-function loadSavedDisponibilites(): IntervenantDisponibilite[] | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const saved = localStorage.getItem("intervenant_disponibilites");
-    return saved ? JSON.parse(saved) : null;
-  } catch {
-    return null;
-  }
-}
+import { useAuth } from "@/components/providers/auth-provider";
+import { useAvailabilities, saveAvailabilities } from "@/hooks/use-supabase-data";
 
 export default function IntervenantDisponibilitesPage() {
   const { toast } = useToast();
-  const initialDispos = loadSavedDisponibilites() || getIntervenantDisponibilites();
+  const { user } = useAuth();
+  const userId = user?.id;
+
+  const { data: supabaseAvailabilities, loading } = useAvailabilities(userId);
+
+  // Transform Supabase data to local format, fallback to mock
+  const initialDispos = useMemo<IntervenantDisponibilite[]>(() => {
+    if (supabaseAvailabilities && supabaseAvailabilities.length > 0) {
+      return supabaseAvailabilities.map((a) => ({
+        id: a.id,
+        day_of_week: a.day_of_week,
+        start_time: a.start_time.slice(0, 5), // "09:00:00" → "09:00"
+        end_time: a.end_time.slice(0, 5),
+        is_active: a.is_active,
+      }));
+    }
+    return getIntervenantDisponibilites();
+  }, [supabaseAvailabilities]);
+
   const [disponibilites, setDisponibilites] = useState<IntervenantDisponibilite[]>(initialDispos);
   const [hasChanges, setHasChanges] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const idCounterRef = useRef(0);
+
+  // Sync when Supabase data loads
+  useEffect(() => {
+    if (supabaseAvailabilities && supabaseAvailabilities.length > 0) {
+      setDisponibilites(
+        supabaseAvailabilities.map((a) => ({
+          id: a.id,
+          day_of_week: a.day_of_week,
+          start_time: a.start_time.slice(0, 5),
+          end_time: a.end_time.slice(0, 5),
+          is_active: a.is_active,
+        }))
+      );
+      setHasChanges(false);
+    }
+  }, [supabaseAvailabilities]);
 
   // Group by day
   const groupedByDay = disponibilites.reduce(
@@ -71,15 +98,52 @@ export default function IntervenantDisponibilitesPage() {
     setHasChanges(true);
   }, []);
 
-  const handleSave = () => {
-    // Persist locally until a dedicated DB table is created
-    localStorage.setItem("intervenant_disponibilites", JSON.stringify(disponibilites));
-    toast("Disponibilites enregistrees avec succes", "success");
-    setHasChanges(false);
+  const handleSave = async () => {
+    if (!userId) {
+      toast("Vous devez etre connecte pour enregistrer", "error");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const { error } = await saveAvailabilities(
+        userId,
+        disponibilites.map((d) => ({
+          day_of_week: d.day_of_week,
+          start_time: d.start_time,
+          end_time: d.end_time,
+          is_active: d.is_active,
+        }))
+      );
+
+      if (error) {
+        // Fallback to localStorage if Supabase fails (table may not exist yet)
+        localStorage.setItem("intervenant_disponibilites", JSON.stringify(disponibilites));
+        toast("Disponibilites enregistrees localement", "success");
+      } else {
+        toast("Disponibilites enregistrees avec succes", "success");
+      }
+      setHasChanges(false);
+    } catch {
+      // Fallback to localStorage
+      localStorage.setItem("intervenant_disponibilites", JSON.stringify(disponibilites));
+      toast("Disponibilites enregistrees localement", "success");
+      setHasChanges(false);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // Days to show (Mon-Fri)
   const workDays = [1, 2, 3, 4, 5];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-accent" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -97,9 +161,14 @@ export default function IntervenantDisponibilitesPage() {
         {hasChanges && (
           <button
             onClick={handleSave}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-success hover:bg-success/90 text-white rounded-lg font-medium transition-colors"
+            disabled={isSaving}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-success hover:bg-success/90 text-white rounded-lg font-medium transition-colors disabled:opacity-60"
           >
-            <Save className="w-4 h-4" />
+            {isSaving ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Save className="w-4 h-4" />
+            )}
             Enregistrer les modifications
           </button>
         )}
@@ -216,9 +285,14 @@ export default function IntervenantDisponibilitesPage() {
         <div className="fixed bottom-4 left-4 right-4 md:hidden">
           <button
             onClick={handleSave}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-success hover:bg-success/90 text-white rounded-xl font-medium shadow-lg transition-colors"
+            disabled={isSaving}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-success hover:bg-success/90 text-white rounded-xl font-medium shadow-lg transition-colors disabled:opacity-60"
           >
-            <Save className="w-5 h-5" />
+            {isSaving ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <Save className="w-5 h-5" />
+            )}
             Enregistrer les modifications
           </button>
         </div>
