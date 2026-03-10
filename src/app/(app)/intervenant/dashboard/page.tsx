@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import {
   Calendar,
   CheckCircle,
@@ -9,6 +10,7 @@ import {
   TrendingUp,
   Video,
   ExternalLink,
+  Loader2,
 } from "lucide-react";
 import {
   getIntervenantStats,
@@ -17,9 +19,11 @@ import {
   type IntervenantReservation,
 } from "@/lib/mock-data-intervenant";
 import { cn } from "@/lib/utils";
-import { format, isAfter, parseISO } from "date-fns";
+import { format, isAfter, parseISO, differenceInMinutes } from "date-fns";
 import { fr } from "date-fns/locale";
 import Link from "next/link";
+import { useAuth } from "@/components/providers/auth-provider";
+import { useAppointments } from "@/hooks/use-supabase-data";
 
 const statusConfig: Record<
   IntervenantReservation["status"],
@@ -32,9 +36,71 @@ const statusConfig: Record<
 };
 
 export default function IntervenantDashboardPage() {
-  const stats = getIntervenantStats();
-  const reservations = getIntervenantReservations();
+  const { profile, loading: authLoading } = useAuth();
+
+  // Fetch appointments for this intervenant (coach)
+  const { data: appointments, loading: appointmentsLoading } = useAppointments({
+    coach_id: profile?.id,
+  });
+
+  // Transform Supabase appointments to our format
+  const reservations = useMemo<IntervenantReservation[]>(() => {
+    if (appointments && appointments.length > 0) {
+      return appointments.map((appt) => {
+        const durationMinutes = differenceInMinutes(
+          new Date(appt.datetime_end),
+          new Date(appt.datetime_start)
+        );
+        const hours = Math.ceil(durationMinutes / 60);
+        const packageHours = (hours <= 2 ? 2 : hours <= 4 ? 4 : 6) as 2 | 4 | 6;
+
+        return {
+          id: appt.id,
+          client_name: appt.client ? `${appt.client.first_name} ${appt.client.last_name}` : "Client",
+          client_email: appt.client?.email || "",
+          client_phone: "",
+          datetime_start: appt.datetime_start,
+          datetime_end: appt.datetime_end,
+          status: (appt.status || "scheduled") as IntervenantReservation["status"],
+          zoom_link: appt.zoom_link || null,
+          notes: appt.notes || null,
+          package_hours: packageHours,
+        };
+      });
+    }
+    // Fallback to mock data
+    return getIntervenantReservations();
+  }, [appointments]);
+
+  // Calculate stats from real data
+  const stats = useMemo(() => {
+    if (appointments && appointments.length > 0) {
+      const completed = appointments.filter((a) => a.status === "completed");
+      const totalMinutes = completed.reduce((acc, a) => {
+        return acc + differenceInMinutes(new Date(a.datetime_end), new Date(a.datetime_start));
+      }, 0);
+
+      return {
+        total_reservations: appointments.length,
+        completed_sessions: completed.length,
+        total_hours: Math.round(totalMinutes / 60),
+        revenue_cents: Math.round((totalMinutes / 60) * 5000 * 0.5), // 50EUR/h * 50%
+        average_rating: 4.8, // Would need rating data
+      };
+    }
+    return getIntervenantStats();
+  }, [appointments]);
+
   const now = new Date();
+  const isLoading = authLoading || appointmentsLoading;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-accent" />
+      </div>
+    );
+  }
 
   // Next upcoming session
   const upcomingSessions = reservations
