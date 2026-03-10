@@ -23,7 +23,7 @@ import {
 } from "@/lib/mock-data";
 
 // ---------- Report generation types ----------
-type ReportType = "mensuel" | "individuel" | "fin_mission";
+type ReportType = "mensuel" | "individuel" | "qualiopi" | "fin_mission";
 
 interface GeneratingState {
   [key: string]: boolean;
@@ -267,6 +267,81 @@ export default function AdminRapportsPage() {
     }
   }
 
+  async function generateQualiopiReport(coachee: MockCoachee) {
+    const key = `qualiopi-${coachee.id}`;
+    setGenerating((prev) => ({ ...prev, [key]: true }));
+    try {
+      const [{ pdf }, { QualiopiReportPDF }] = await Promise.all([
+        import("@react-pdf/renderer"),
+        import("@/components/reports/qualiopi-report-pdf"),
+      ]);
+
+      // Build Qualiopi report data
+      const completedModules = coachee.module_progress.filter((m) => m.status === "complete").length;
+      const totalModules = coachee.module_progress.length || 1;
+      const satisfactionScores = coachee.module_progress
+        .filter((m) => m.satisfaction_score !== undefined)
+        .map((m) => m.satisfaction_score!);
+      const avgSatisfaction = satisfactionScores.length > 0
+        ? satisfactionScores.reduce((a, b) => a + b, 0) / satisfactionScores.length
+        : 0;
+
+      const data = {
+        firstName: coachee.first_name,
+        lastName: coachee.last_name,
+        email: coachee.email,
+        companyName: coachee.company_name,
+        parcoursTitle: "Parcours de Developpement Personnel",
+        startDate: coachee.start_date,
+        endDate: completedModules === totalModules ? new Date().toISOString().split("T")[0] : null,
+        totalHours: totalModules * 8, // Approximate 8h per module
+        modules: coachee.module_progress.map((m) => ({
+          title: m.module_title,
+          startDate: coachee.start_date,
+          endDate: m.status === "complete" ? new Date().toISOString().split("T")[0] : null,
+          status: m.status === "complete" ? "complete" as const : m.status === "en_cours" ? "en_cours" as const : "non_commence" as const,
+          satisfactionScore: m.satisfaction_score || null,
+          questionnaires: m.status !== "non_commence" ? [
+            {
+              type: "amont" as const,
+              completedAt: coachee.start_date,
+              questions: [
+                { label: "Attentes par rapport a la formation", answer: "Ameliorer mes competences" },
+                { label: "Niveau de motivation", answer: 8 },
+              ],
+            },
+            ...(m.status === "complete" ? [{
+              type: "aval" as const,
+              completedAt: new Date().toISOString().split("T")[0],
+              questions: [
+                { label: "Satisfaction globale", answer: m.satisfaction_score || 8 },
+                { label: "Recommanderiez-vous cette formation", answer: "Oui" },
+              ],
+            }] : []),
+          ] : [],
+          attendanceRate: m.status === "complete" ? 100 : m.status === "en_cours" ? 75 : 0,
+        })),
+        globalSatisfaction: avgSatisfaction,
+        completionRate: Math.round((completedModules / totalModules) * 100),
+        attendanceRate: 92,
+        certificationEligible: completedModules === totalModules,
+        certificationDate: completedModules === totalModules ? new Date().toISOString().split("T")[0] : null,
+      };
+
+      const blob = await pdf(<QualiopiReportPDF data={data} />).toBlob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `attestation-qualiopi-${coachee.first_name.toLowerCase()}-${coachee.last_name.toLowerCase()}.pdf`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Erreur generation rapport Qualiopi:", err);
+    } finally {
+      setGenerating((prev) => ({ ...prev, [key]: false }));
+    }
+  }
+
   const tabs: { key: ReportType; label: string; icon: React.ReactNode }[] = [
     {
       key: "mensuel",
@@ -277,6 +352,11 @@ export default function AdminRapportsPage() {
       key: "individuel",
       label: "Rapports Individuels",
       icon: <User className="w-4 h-4" />,
+    },
+    {
+      key: "qualiopi",
+      label: "Attestations Qualiopi",
+      icon: <FileText className="w-4 h-4" />,
     },
     {
       key: "fin_mission",
@@ -557,6 +637,89 @@ export default function AdminRapportsPage() {
                         </div>
                       </div>
                     )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Qualiopi Attestations */}
+      {activeTab === "qualiopi" && (
+        <div className="space-y-3">
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-4">
+            <p className="text-sm text-blue-800">
+              <strong>Attestations Qualiopi</strong> : Documents officiels conformes aux exigences de la certification Qualiopi.
+              Incluent les questionnaires amont/aval, taux de completion et satisfaction.
+            </p>
+          </div>
+          {filteredCoachees.map((coachee) => {
+            const genKey = `qualiopi-${coachee.id}`;
+            const isGenerating = generating[genKey] || false;
+            const completedModules = coachee.module_progress.filter(
+              (m) => m.status === "complete"
+            ).length;
+            const totalModules = coachee.module_progress.length;
+            const completionRate = totalModules > 0 ? Math.round((completedModules / totalModules) * 100) : 0;
+
+            return (
+              <div
+                key={coachee.id}
+                className="bg-white rounded-xl border border-gray-200 p-5"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-11 h-11 rounded-full bg-blue-100 flex items-center justify-center text-sm font-bold text-blue-700">
+                      {coachee.first_name[0]}
+                      {coachee.last_name[0]}
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-dark">
+                        {coachee.first_name} {coachee.last_name}
+                      </h3>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {coachee.type === "entreprise"
+                          ? coachee.company_name
+                          : "Individuel"}{" "}
+                        | Completion: {completionRate}%
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    {/* Completion indicator */}
+                    <div className="hidden sm:flex items-center gap-2">
+                      <div className="w-24 h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className={cn(
+                            "h-full rounded-full",
+                            completionRate === 100
+                              ? "bg-success"
+                              : completionRate >= 50
+                                ? "bg-accent"
+                                : "bg-warning"
+                          )}
+                          style={{ width: `${completionRate}%` }}
+                        />
+                      </div>
+                      <span className="text-xs font-medium text-gray-500">
+                        {completionRate}%
+                      </span>
+                    </div>
+
+                    <button
+                      onClick={() => generateQualiopiReport(coachee)}
+                      disabled={isGenerating}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isGenerating ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Download className="w-4 h-4" />
+                      )}
+                      {isGenerating ? "Generation..." : "Attestation Qualiopi"}
+                    </button>
                   </div>
                 </div>
               </div>

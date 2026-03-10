@@ -3,7 +3,7 @@
 import { Building2, MessageSquare, Star, TrendingUp, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useMemo } from "react";
-import { format } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
 import { KpiGauge } from "@/components/ui/kpi-gauge";
 import { KpiObjectives } from "@/components/dirigeant/kpi-objectives";
@@ -12,12 +12,14 @@ import { EvolutionChart } from "@/components/dirigeant/evolution-chart";
 import type { EvolutionDataPoint } from "@/components/dirigeant/evolution-chart";
 import { ModuleCompletion } from "@/components/dirigeant/module-completion";
 import { ReportsPreview } from "@/components/dirigeant/reports-preview";
+import { EmployeeProgressList } from "@/components/dirigeant/employee-progress-list";
 import { useAuth } from "@/components/providers/auth-provider";
 import {
   useCompany,
   useDirigeantDashboardStats,
   useKpiScores,
   useModuleProgress,
+  useProfiles,
 } from "@/hooks/use-supabase-data";
 import { mockCompanies, mockCoachees, getCompanyAverageKpis } from "@/lib/mock-data";
 
@@ -36,6 +38,7 @@ export default function DirigeantDashboardPage() {
   const { data: dashboardStats, loading: statsLoading } = useDirigeantDashboardStats(profile?.company_id || undefined);
   const { data: kpiHistory } = useKpiScores({ company_id: profile?.company_id || undefined });
   const { data: moduleProgressData } = useModuleProgress({ company_id: profile?.company_id || undefined });
+  const { data: companyEmployees } = useProfiles({ company_id: profile?.company_id || undefined });
 
   // Fallback mock data
   const mockCompany = mockCompanies[0];
@@ -177,6 +180,54 @@ export default function DirigeantDashboardPage() {
       }
     : mockKpis;
 
+  // Transform employee data for progress list
+  const employeeProgressData = useMemo(() => {
+    if (companyEmployees && companyEmployees.length > 0 && moduleProgressData) {
+      return companyEmployees
+        .filter((e) => e.role === "salarie")
+        .map((employee) => {
+          const userModules = moduleProgressData.filter((m) => m.user_id === employee.id);
+          const completedCount = userModules.filter((m) => m.status === "validated").length;
+          const totalCount = userModules.length || 1;
+          const currentModule = userModules.find((m) => m.status === "in_progress");
+
+          return {
+            id: employee.id,
+            firstName: employee.first_name,
+            lastName: employee.last_name,
+            avatarUrl: employee.avatar_url,
+            modulesCompleted: completedCount,
+            modulesTotal: totalCount,
+            progressPercent: Math.round((completedCount / totalCount) * 100),
+            lastActivity: employee.updated_at
+              ? formatDistanceToNow(new Date(employee.updated_at), { addSuffix: true, locale: fr })
+              : "Inconnu",
+            kpiTrend: "stable" as const, // Would need KPI comparison logic
+            currentModule: currentModule?.module?.title || null,
+          };
+        });
+    }
+    // Fallback to mock data
+    return mockTeamMembers.map((member) => {
+      const completedCount = member.module_progress.filter((m) => m.status === "complete").length;
+      const totalCount = member.module_progress.length || 1;
+      const currentModule = member.module_progress.find((m) => m.status === "en_cours");
+
+      return {
+        id: member.id,
+        firstName: member.first_name,
+        lastName: member.last_name,
+        avatarUrl: member.avatar_url,
+        modulesCompleted: completedCount,
+        modulesTotal: totalCount,
+        progressPercent: Math.round((completedCount / totalCount) * 100),
+        lastActivity: formatDistanceToNow(new Date(member.last_activity), { addSuffix: true, locale: fr }),
+        kpiTrend: member.kpis.investissement >= 7 ? "up" as const : member.kpis.investissement <= 4 ? "down" as const : "stable" as const,
+        currentModule: currentModule?.module_title || null,
+      };
+    });
+  }, [companyEmployees, moduleProgressData]);
+
   const isLoading = authLoading || companyLoading || statsLoading;
 
   if (isLoading) {
@@ -226,7 +277,10 @@ export default function DirigeantDashboardPage() {
       {/* 4. Evolution Chart */}
       <EvolutionChart data={evolutionData} />
 
-      {/* 5 & 6. Module Completion + Satisfaction side by side on desktop */}
+      {/* 5. Employee Progress List - Real-time */}
+      <EmployeeProgressList employees={employeeProgressData} />
+
+      {/* 6 & 7. Module Completion + Satisfaction side by side on desktop */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <ModuleCompletion
           completedModules={completedModules}
