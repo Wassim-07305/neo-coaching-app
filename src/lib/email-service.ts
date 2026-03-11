@@ -8,6 +8,10 @@ import {
   generateWelcomeEmail,
   generateRdvConfirmationEmail,
   generateModuleCompleteEmail,
+  generateKpiAlertEmail,
+  generateInvitationEmail,
+  generateRdvReminderEmail,
+  generateBookingConfirmationEmail,
 } from "@/lib/email-templates";
 
 // ---------------------------------------------------------------------------
@@ -163,6 +167,98 @@ export async function sendModuleCompleteEmail(
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     console.error("[EMAIL-SERVICE] sendModuleCompleteEmail failed:", message);
+    return { success: false, error: message };
+  }
+}
+
+export async function sendKpiAlertEmail(
+  to: string,
+  vars: {
+    coacheeName: string;
+    kpiName: string;
+    kpiValue: string;
+    coacheeProfileUrl: string;
+  }
+): Promise<EmailResult> {
+  try {
+    const html = generateKpiAlertEmail(vars);
+    return sendEmail({
+      to,
+      subject: `Alerte : indicateur en baisse pour ${vars.coacheeName}`,
+      html,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error("[EMAIL-SERVICE] sendKpiAlertEmail failed:", message);
+    return { success: false, error: message };
+  }
+}
+
+export async function sendInvitationEmail(
+  to: string,
+  vars: {
+    firstName: string;
+    companyName: string;
+    inviteUrl: string;
+  }
+): Promise<EmailResult> {
+  try {
+    const html = generateInvitationEmail(vars);
+    return sendEmail({
+      to,
+      subject: `${vars.companyName} vous invite sur Neo-Coaching`,
+      html,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error("[EMAIL-SERVICE] sendInvitationEmail failed:", message);
+    return { success: false, error: message };
+  }
+}
+
+export async function sendRdvReminderEmail(
+  to: string,
+  vars: {
+    firstName: string;
+    date: string;
+    time: string;
+    coachName: string;
+    zoomLink: string;
+    hoursUntil: string;
+  }
+): Promise<EmailResult> {
+  try {
+    const html = generateRdvReminderEmail(vars);
+    return sendEmail({
+      to,
+      subject: `Rappel : votre coaching est dans ${vars.hoursUntil}h`,
+      html,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error("[EMAIL-SERVICE] sendRdvReminderEmail failed:", message);
+    return { success: false, error: message };
+  }
+}
+
+export async function sendBookingConfirmationEmail(
+  to: string,
+  vars: {
+    firstName: string;
+    date: string;
+    time: string;
+  }
+): Promise<EmailResult> {
+  try {
+    const html = generateBookingConfirmationEmail(vars);
+    return sendEmail({
+      to,
+      subject: `Votre demande de consultation a ete recue`,
+      html,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error("[EMAIL-SERVICE] sendBookingConfirmationEmail failed:", message);
     return { success: false, error: message };
   }
 }

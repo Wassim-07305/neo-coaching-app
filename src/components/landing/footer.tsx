@@ -75,11 +75,19 @@ export function Footer() {
         </div>
 
         {/* Bottom bar */}
-        <div className="mt-12 pt-8 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-gray-500">
+        <div className="mt-12 pt-8 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-gray-500">
           <p>&copy; 2026 NEO-FORMATIONS. Tous droits reserves.</p>
-          <Link href="#" className="hover:text-accent transition-colors">
-            Mentions legales
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link href="/mentions-legales" className="hover:text-accent transition-colors">
+              Mentions legales
+            </Link>
+            <Link href="/cgu" className="hover:text-accent transition-colors">
+              CGU
+            </Link>
+            <Link href="/confidentialite" className="hover:text-accent transition-colors">
+              Confidentialite
+            </Link>
+          </div>
         </div>
       </div>
     </footer>

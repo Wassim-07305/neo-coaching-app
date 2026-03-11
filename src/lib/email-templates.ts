@@ -291,3 +291,80 @@ export function generateKpiAlertEmail(vars: {
   `;
   return generateEmailHtml(content, `Alerte KPI pour ${vars.coacheeName}`);
 }
+
+export function generateInvitationEmail(vars: {
+  firstName: string;
+  companyName: string;
+  inviteUrl: string;
+}): string {
+  const content = `
+    <h1 style="margin:0 0 16px;font-size:24px;color:#0A1628;">Vous etes invite !</h1>
+    <p style="margin:0 0 16px;font-size:14px;color:#4b5563;line-height:1.6;">
+      Bonjour ${vars.firstName}, votre entreprise <strong>${vars.companyName}</strong>
+      vous invite a rejoindre la plateforme Neo-Coaching pour demarrer votre parcours de formation.
+    </p>
+    <p style="margin:0 0 16px;font-size:14px;color:#4b5563;line-height:1.6;">
+      Cliquez sur le bouton ci-dessous pour creer votre compte et acceder a vos modules de formation.
+    </p>
+    ${emailButton("Accepter l'invitation", vars.inviteUrl)}
+    <p style="margin:0;font-size:13px;color:#9ca3af;">
+      Ce lien est valable 7 jours. Si vous n'etes pas concerne par cette invitation, ignorez cet email.
+    </p>
+  `;
+  return generateEmailHtml(content, `${vars.companyName} vous invite sur Neo-Coaching`);
+}
+
+export function generateRdvReminderEmail(vars: {
+  firstName: string;
+  date: string;
+  time: string;
+  coachName: string;
+  zoomLink: string;
+  hoursUntil: string;
+}): string {
+  const content = `
+    <h1 style="margin:0 0 16px;font-size:24px;color:#0A1628;">Rappel de rendez-vous</h1>
+    <p style="margin:0 0 16px;font-size:14px;color:#4b5563;line-height:1.6;">
+      Bonjour ${vars.firstName}, votre seance de coaching avec <strong>${vars.coachName}</strong>
+      est prevue dans <strong>${vars.hoursUntil} heure(s)</strong>.
+    </p>
+    <table role="presentation" width="100%" style="background-color:#f9fafb;border-radius:8px;padding:16px;margin:0 0 16px;">
+      <tr>
+        <td style="padding:8px 16px;font-size:14px;color:#6b7280;">Date</td>
+        <td style="padding:8px 16px;font-size:14px;color:#0A1628;font-weight:600;">${vars.date}</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 16px;font-size:14px;color:#6b7280;">Heure</td>
+        <td style="padding:8px 16px;font-size:14px;color:#0A1628;font-weight:600;">${vars.time}</td>
+      </tr>
+    </table>
+    ${emailButton("Rejoindre la session Zoom", vars.zoomLink)}
+    <p style="margin:0;font-size:13px;color:#9ca3af;">
+      En cas d'empechement, merci d'annuler au minimum 24h a l'avance.
+    </p>
+  `;
+  return generateEmailHtml(content, `Rappel : coaching dans ${vars.hoursUntil}h`);
+}
+
+export function generateBookingConfirmationEmail(vars: {
+  firstName: string;
+  date: string;
+  time: string;
+}): string {
+  const content = `
+    <h1 style="margin:0 0 16px;font-size:24px;color:#0A1628;">Demande recue !</h1>
+    <p style="margin:0 0 16px;font-size:14px;color:#4b5563;line-height:1.6;">
+      Bonjour ${vars.firstName}, nous avons bien recu votre demande de consultation pour le
+      <strong>${vars.date}</strong> a <strong>${vars.time}</strong>.
+    </p>
+    <p style="margin:0 0 16px;font-size:14px;color:#4b5563;line-height:1.6;">
+      Jean-Claude YEKPE reviendra vers vous sous 24h pour confirmer votre rendez-vous
+      et vous transmettre le lien de connexion.
+    </p>
+    <p style="margin:0 0 16px;font-size:14px;color:#4b5563;line-height:1.6;">
+      En attendant, n'hesitez pas a decouvrir nos ressources :
+    </p>
+    ${emailButton("Decouvrir Neo-Coaching", "https://neo-coaching.fr")}
+  `;
+  return generateEmailHtml(content, "Votre demande de consultation a ete recue");
+}
