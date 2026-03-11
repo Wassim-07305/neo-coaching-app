@@ -1,12 +1,15 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { type MockMessage } from "@/lib/mock-data-community";
 import { MessageInput } from "./message-input";
+import { useMessages, insertMessage } from "@/hooks/use-supabase-data";
+import type { Message, Profile } from "@/lib/supabase/types";
 import { ArrowLeft, Phone, Video } from "lucide-react";
 
 interface DmThreadProps {
+  recipientId?: string;
   recipientName: string;
   recipientInitials: string;
   messages: MockMessage[];
@@ -14,23 +17,61 @@ interface DmThreadProps {
   currentUserId?: string;
 }
 
+function supabaseToMockDm(
+  msg: Message & { sender?: Profile },
+  currentUserId: string
+): MockMessage {
+  const sender = msg.sender;
+  const firstName = sender?.first_name || "Utilisateur";
+  const lastName = sender?.last_name || "";
+  const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+
+  return {
+    id: msg.id,
+    groupId: "dm",
+    senderId: msg.sender_id,
+    senderName: msg.sender_id === currentUserId ? "Vous" : `${firstName} ${lastName}`.trim(),
+    senderInitials: msg.sender_id === currentUserId ? "VS" : initials,
+    content: msg.content,
+    timestamp: msg.created_at,
+    timeLabel: new Date(msg.created_at).toLocaleTimeString("fr-FR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+    isPinned: false,
+  };
+}
+
 export function DmThread({
+  recipientId,
   recipientName,
   recipientInitials,
   messages: initialMessages,
   onBack,
   currentUserId = "coach-1",
 }: DmThreadProps) {
-  const [messages, setMessages] = useState<MockMessage[]>(initialMessages);
+  // Fetch DM messages from Supabase scoped to the current user + recipient
+  const { data: supabaseMessages, refetch } = useMessages(undefined, recipientId, currentUserId);
+
+  const messages = useMemo<MockMessage[]>(() => {
+    if (supabaseMessages && supabaseMessages.length > 0) {
+      return supabaseMessages.map((m) => supabaseToMockDm(m, currentUserId));
+    }
+    return initialMessages;
+  }, [supabaseMessages, initialMessages, currentUserId]);
+
+  const [localMessages, setLocalMessages] = useState<MockMessage[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const allMessages = useMemo(() => [...messages, ...localMessages], [messages, localMessages]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [allMessages]);
 
-  function handleSend(content: string) {
-    const newMsg: MockMessage = {
-      id: `dm-new-${Date.now()}`,
+  async function handleSend(content: string) {
+    const tempMsg: MockMessage = {
+      id: `dm-temp-${Date.now()}`,
       groupId: "dm",
       senderId: currentUserId,
       senderName: "Vous",
@@ -43,7 +84,21 @@ export function DmThread({
       }),
       isPinned: false,
     };
-    setMessages((prev) => [...prev, newMsg]);
+    setLocalMessages((prev) => [...prev, tempMsg]);
+
+    if (recipientId) {
+      try {
+        await insertMessage({
+          sender_id: currentUserId,
+          content,
+          recipient_id: recipientId,
+        });
+        refetch();
+        setLocalMessages((prev) => prev.filter((m) => m.id !== tempMsg.id));
+      } catch {
+        // Keep optimistic message on error
+      }
+    }
   }
 
   return (
@@ -79,7 +134,7 @@ export function DmThread({
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
-        {messages.map((msg) => {
+        {allMessages.map((msg) => {
           const isOwn =
             msg.senderId === currentUserId || msg.senderName === "Vous";
 

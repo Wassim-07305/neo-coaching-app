@@ -8,6 +8,7 @@ import {
   Clock,
   LayoutDashboard,
   LogOut,
+  Settings,
   User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -18,6 +19,7 @@ const navItems = [
   { href: "/intervenant/dashboard", label: "Tableau de bord", icon: LayoutDashboard },
   { href: "/intervenant/reservations", label: "Mes reservations", icon: Calendar },
   { href: "/intervenant/disponibilites", label: "Disponibilites", icon: Clock },
+  { href: "/intervenant/profil", label: "Profil", icon: Settings },
 ];
 
 export default function IntervenantLayout({

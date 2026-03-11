@@ -1,13 +1,54 @@
 "use client";
 
-import { Award, Download } from "lucide-react";
+import { useState } from "react";
+import { Award, Download, Loader2 } from "lucide-react";
+import { pdf } from "@react-pdf/renderer";
+import { CertificatePDF } from "@/components/reports/certificate-pdf";
 import type { MockCertificate } from "@/lib/mock-data";
 
 interface CertificatesGalleryProps {
   certificates: MockCertificate[];
+  coacheeName?: string;
 }
 
-export function CertificatesGallery({ certificates }: CertificatesGalleryProps) {
+export function CertificatesGallery({ certificates, coacheeName = "Participant" }: CertificatesGalleryProps) {
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  const handleDownload = async (cert: MockCertificate) => {
+    setDownloadingId(cert.id);
+
+    try {
+      // Generate PDF blob
+      const blob = await pdf(
+        <CertificatePDF
+          data={{
+            coacheeName,
+            moduleTitle: cert.module_title,
+            completionDate: new Date(cert.earned_date).toLocaleDateString("fr-FR", {
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+            }),
+          }}
+        />
+      ).toBlob();
+
+      // Create download link
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `certificat-${cert.module_title.toLowerCase().replace(/\s+/g, "-")}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Error generating certificate PDF:", error);
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
   if (certificates.length === 0) {
     return (
       <div className="bg-white rounded-xl border border-gray-200 p-5 md:p-6">
@@ -47,9 +88,22 @@ export function CertificatesGallery({ certificates }: CertificatesGalleryProps) 
                 </p>
               </div>
             </div>
-            <button className="flex items-center gap-1.5 text-xs font-medium text-accent hover:underline">
-              <Download className="w-3.5 h-3.5" />
-              Telecharger
+            <button
+              onClick={() => handleDownload(cert)}
+              disabled={downloadingId === cert.id}
+              className="flex items-center gap-1.5 text-xs font-medium text-accent hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {downloadingId === cert.id ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Generation...
+                </>
+              ) : (
+                <>
+                  <Download className="w-3.5 h-3.5" />
+                  Telecharger PDF
+                </>
+              )}
             </button>
           </div>
         ))}

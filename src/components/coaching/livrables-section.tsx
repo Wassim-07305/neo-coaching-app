@@ -1,11 +1,21 @@
 "use client";
 
-import { FileText, Headphones, Video, Upload, CheckCircle2, Clock } from "lucide-react";
+import { FileText, Headphones, Video, Upload, CheckCircle2, Clock, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { MockLivrable, LivrableStatus, LivrableType } from "@/lib/mock-data";
+
+type LivrableType = "ecrit" | "audio" | "video";
+type LivrableStatus = "soumis" | "en_attente" | "valide" | "refuse";
+
+export interface DisplayLivrable {
+  id: string;
+  type: LivrableType;
+  file_name: string;
+  status: LivrableStatus;
+  module_title?: string;
+}
 
 interface LivrablesSectionProps {
-  livrables: MockLivrable[];
+  livrables: DisplayLivrable[];
   currentModuleTitle: string;
 }
 
@@ -26,6 +36,8 @@ function getStatusConfig(status: LivrableStatus) {
       return { label: "Valide", bgClass: "bg-success/10", textClass: "text-success", icon: CheckCircle2 };
     case "soumis":
       return { label: "Soumis", bgClass: "bg-warning/10", textClass: "text-warning", icon: Clock };
+    case "refuse":
+      return { label: "Refuse", bgClass: "bg-danger/10", textClass: "text-danger", icon: XCircle };
     case "en_attente":
       return { label: "En attente", bgClass: "bg-gray-100", textClass: "text-gray-500", icon: Clock };
   }
@@ -33,7 +45,9 @@ function getStatusConfig(status: LivrableStatus) {
 
 export function LivrablesSection({ livrables, currentModuleTitle }: LivrablesSectionProps) {
   // Filter livrables for current module
-  const currentLivrables = livrables.filter((l) => l.module_title === currentModuleTitle);
+  const currentLivrables = livrables.filter(
+    (l) => l.module_title === currentModuleTitle || !l.module_title
+  );
 
   // Available types that could still be uploaded
   const submittedTypes = new Set(currentLivrables.map((l) => l.type));

@@ -8,6 +8,8 @@ import { StepQualification } from "./step-qualification";
 import { StepCreneau } from "./step-creneau";
 import { Confirmation } from "./confirmation";
 import { createClient } from "@/lib/supabase/client";
+import { createUntypedClient } from "@/lib/supabase/client";
+import { createAppointment, createNotification } from "@/hooks/use-supabase-data";
 import { useToast } from "@/components/ui/toast";
 import type { BookingFormData } from "@/lib/validations/booking";
 import { cn } from "@/lib/utils";
@@ -79,7 +81,7 @@ export function BookingWizard() {
     await savePartialData(merged, nextStep);
 
     if (nextStep > TOTAL_STEPS) {
-      // Final step - mark as complete
+      // Final step - mark as complete and create appointment
       try {
         if (submissionId) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -88,8 +90,60 @@ export function BookingWizard() {
             .update({ completed: true, step_reached: TOTAL_STEPS })
             .eq("id", submissionId);
         }
+
+        // Create appointment in Supabase
+        const selectedDate = merged.selected_date;
+        const selectedTime = merged.selected_time;
+        if (selectedDate && selectedTime) {
+          // Parse time like "14h00" -> "14:00"
+          const timeParts = selectedTime.replace("h", ":").padEnd(5, "0");
+          const datetimeStart = `${selectedDate}T${timeParts}:00`;
+          const startDate = new Date(datetimeStart);
+          const endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // +1 hour
+          const datetimeEnd = endDate.toISOString();
+
+          // Find admin to assign as coach
+          const untypedClient = createUntypedClient();
+          const { data: admins } = await untypedClient
+            .from("profiles")
+            .select("id")
+            .eq("role", "admin")
+            .limit(1);
+          const coachId = admins?.[0]?.id || "00000000-0000-0000-0000-000000000000";
+
+          const prospectData = {
+            first_name: merged.first_name,
+            last_name: merged.last_name,
+            email: merged.email,
+            phone: merged.phone,
+            source: merged.source,
+            situation: merged.problematique,
+          };
+
+          await createAppointment({
+            coach_id: coachId,
+            prospect_data: prospectData,
+            datetime_start: startDate.toISOString(),
+            datetime_end: datetimeEnd,
+            type: "discovery",
+            notes: `Appel decouverte - ${merged.first_name} ${merged.last_name}`,
+          });
+
+          // Notify admins
+          if (admins && admins.length > 0) {
+            for (const admin of admins) {
+              await createNotification({
+                user_id: admin.id,
+                type: "rdv_reminder",
+                title: "Nouveau RDV decouverte",
+                body: `${merged.first_name} ${merged.last_name} a reserve un appel decouverte le ${selectedDate} a ${selectedTime}.`,
+                link: "/admin/rdv",
+              });
+            }
+          }
+        }
       } catch {
-        // ignore
+        // ignore - appointment creation failure shouldn't block confirmation
       }
       setIsComplete(true);
       toast("Votre rendez-vous a ete confirme !", "success");

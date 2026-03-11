@@ -1,9 +1,21 @@
 import { cn } from "@/lib/utils";
 import { FileText, Headphones, Video, Download } from "lucide-react";
-import type { MockLivrable, LivrableType, LivrableStatus } from "@/lib/mock-data";
+
+type LivrableType = "ecrit" | "audio" | "video";
+type LivrableStatus = "soumis" | "en_attente" | "valide" | "refuse";
+
+export interface AdminLivrable {
+  id: string;
+  module_title: string;
+  type: LivrableType;
+  submission_date: string;
+  status: LivrableStatus;
+  file_name: string;
+  file_url?: string;
+}
 
 interface LivrablesListProps {
-  livrables: MockLivrable[];
+  livrables: AdminLivrable[];
 }
 
 const typeIcons: Record<LivrableType, { icon: React.ElementType; label: string }> = {
@@ -16,6 +28,7 @@ const statusStyles: Record<LivrableStatus, { label: string; className: string }>
   soumis: { label: "Soumis", className: "bg-blue-50 text-blue-700" },
   en_attente: { label: "En attente", className: "bg-warning/10 text-warning" },
   valide: { label: "Valide", className: "bg-success/10 text-success" },
+  refuse: { label: "Refuse", className: "bg-danger/10 text-danger" },
 };
 
 export function LivrablesList({ livrables }: LivrablesListProps) {

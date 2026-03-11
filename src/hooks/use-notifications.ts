@@ -1,6 +1,9 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { createUntypedClient } from "@/lib/supabase/client";
+import { formatDistanceToNow } from "date-fns";
+import { fr } from "date-fns/locale";
 
 export type NotificationType =
   | "module_complete"
@@ -144,26 +147,113 @@ const mockNotifications: Notification[] = [
   },
 ];
 
-export function useNotifications() {
-  const [notifications, setNotifications] =
-    useState<Notification[]>(mockNotifications);
+export function useNotifications(userId?: string) {
+  const [notifications, setNotifications] = useState<Notification[]>(mockNotifications);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch notifications from Supabase
+  useEffect(() => {
+    async function fetchNotifications() {
+      if (!userId) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const supabase = createUntypedClient();
+        const { data, error } = await supabase
+          .from("notifications")
+          .select("*")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false })
+          .limit(50);
+
+        if (error) {
+          console.error("Error fetching notifications:", error);
+          setLoading(false);
+          return;
+        }
+
+        if (data && data.length > 0) {
+          const transformed: Notification[] = data.map((n: {
+            id: string;
+            type: string;
+            title: string;
+            body: string;
+            link: string;
+            is_read: boolean;
+            created_at: string;
+          }) => ({
+            id: n.id,
+            type: n.type as NotificationType,
+            title: n.title,
+            body: n.body,
+            link: n.link || "#",
+            read: n.is_read,
+            createdAt: n.created_at,
+            timeLabel: formatDistanceToNow(new Date(n.created_at), {
+              addSuffix: false,
+              locale: fr,
+            }).replace("environ ", ""),
+          }));
+          setNotifications(transformed);
+        }
+      } catch (err) {
+        console.error("Error in useNotifications:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchNotifications();
+  }, [userId]);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
-  const markAsRead = useCallback((id: string) => {
+  const markAsRead = useCallback(async (id: string) => {
+    // Optimistically update UI
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n))
     );
-  }, []);
 
-  const markAllAsRead = useCallback(() => {
+    // Update in Supabase if userId is provided
+    if (userId) {
+      try {
+        const supabase = createUntypedClient();
+        await supabase
+          .from("notifications")
+          .update({ is_read: true })
+          .eq("id", id);
+      } catch (err) {
+        console.error("Error marking notification as read:", err);
+      }
+    }
+  }, [userId]);
+
+  const markAllAsRead = useCallback(async () => {
+    // Optimistically update UI
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-  }, []);
+
+    // Update in Supabase if userId is provided
+    if (userId) {
+      try {
+        const supabase = createUntypedClient();
+        await supabase
+          .from("notifications")
+          .update({ is_read: true })
+          .eq("user_id", userId)
+          .eq("is_read", false);
+      } catch (err) {
+        console.error("Error marking all notifications as read:", err);
+      }
+    }
+  }, [userId]);
 
   return {
     notifications,
     unreadCount,
     markAsRead,
     markAllAsRead,
+    loading,
   };
 }

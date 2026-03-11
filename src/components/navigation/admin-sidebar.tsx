@@ -14,6 +14,10 @@ import {
   UserCheck,
   FileText,
   Calendar,
+  ClipboardList,
+  Route,
+  Video,
+  CreditCard,
   Settings,
   LogOut,
   Menu,
@@ -28,8 +32,12 @@ const navItems = [
   { icon: BookOpen, label: "Modules", href: "/admin/modules" },
   { icon: MessageSquare, label: "Communaute", href: "/admin/communaute" },
   { icon: UserCheck, label: "Intervenants", href: "/admin/intervenants" },
+  { icon: Route, label: "Parcours", href: "/admin/parcours" },
+  { icon: ClipboardList, label: "Questionnaires", href: "/admin/questionnaires" },
   { icon: FileText, label: "Rapports", href: "/admin/rapports" },
+  { icon: CreditCard, label: "Paiements", href: "/admin/paiements" },
   { icon: Calendar, label: "RDV / Booking", href: "/admin/rdv" },
+  { icon: Video, label: "Calendly", href: "/admin/calendly" },
   { icon: Settings, label: "Parametres", href: "/admin/parametres" },
 ];
 

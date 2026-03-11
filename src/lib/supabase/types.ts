@@ -12,6 +12,10 @@ export type TaskStatus = "pending" | "completed";
 export type CompletionSpeed = "same_day" | "next_day" | "on_time" | "late" | "not_done";
 export type GroupType = "entreprise" | "coaching_individuel" | "general";
 export type NotificationType = "module_complete" | "module_reminder" | "kpi_alert" | "message" | "rdv_reminder" | "task_reminder";
+export type QuestionType = "text" | "textarea" | "slider" | "radio" | "checkbox";
+export type QuestionnairePhase = "amont" | "aval" | "mi-parcours";
+export type ParcoursStatus = "not_started" | "in_progress" | "completed" | "overdue";
+export type ParcoursModuleStatus = "locked" | "available" | "in_progress" | "completed";
 
 // Table Row types
 export interface Profile {
@@ -190,6 +194,159 @@ export interface Task {
   created_at: string;
 }
 
+export interface Questionnaire {
+  id: string;
+  title: string;
+  description: string | null;
+  badge: string;
+  phase: QuestionnairePhase;
+  module_id: string | null;
+  google_forms_url: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface QuestionnaireQuestion {
+  id: string;
+  questionnaire_id: string;
+  label: string;
+  type: QuestionType;
+  required: boolean;
+  placeholder: string | null;
+  min_value: number | null;
+  max_value: number | null;
+  options: string[] | null;
+  order_index: number;
+  created_at: string;
+}
+
+export interface QuestionnaireResponse {
+  id: string;
+  questionnaire_id: string;
+  user_id: string;
+  module_progress_id: string | null;
+  answers: Record<string, string | number>;
+  submitted_at: string;
+  created_at: string;
+}
+
+export interface ParcoursTemplate {
+  id: string;
+  title: string;
+  description: string | null;
+  category: string;
+  duration_weeks: number;
+  module_ids: string[];
+  is_default: boolean;
+  is_active: boolean;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AssignedParcours {
+  id: string;
+  template_id: string | null;
+  title: string;
+  description: string | null;
+  assigned_to: string;
+  assigned_by: string;
+  company_id: string | null;
+  start_date: string;
+  end_date: string;
+  status: ParcoursStatus;
+  progress: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ParcoursModule {
+  id: string;
+  parcours_id: string;
+  module_id: string;
+  order_index: number;
+  deadline: string | null;
+  completed_at: string | null;
+  status: ParcoursModuleStatus;
+  created_at: string;
+}
+
+export interface CalendlySettings {
+  id: string;
+  user_id: string;
+  calendly_url: string;
+  api_key: string | null;
+  event_types: Record<string, unknown>[];
+  is_active: boolean;
+  last_synced_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CalendlyBooking {
+  id: string;
+  calendly_event_id: string;
+  user_id: string;
+  client_id: string | null;
+  client_name: string | null;
+  client_email: string | null;
+  event_type: string;
+  start_time: string;
+  end_time: string;
+  location: string | null;
+  status: string;
+  cancel_url: string | null;
+  reschedule_url: string | null;
+  raw_data: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export type LivrableType = "ecrit" | "audio" | "video";
+export type LivrableStatus = "en_attente" | "soumis" | "valide" | "refuse";
+
+export interface Livrable {
+  id: string;
+  user_id: string;
+  module_id: string;
+  module_progress_id: string | null;
+  type: LivrableType;
+  file_name: string;
+  file_url: string;
+  status: LivrableStatus;
+  coach_feedback: string | null;
+  submitted_at: string;
+  reviewed_at: string | null;
+  created_at: string;
+}
+
+export type InvitationTokenStatus = "pending" | "accepted" | "expired" | "revoked";
+
+export interface InvitationToken {
+  id: string;
+  token: string;
+  company_id: string;
+  created_by: string;
+  email: string | null;
+  role: UserRole;
+  status: InvitationTokenStatus;
+  expires_at: string;
+  accepted_by: string | null;
+  accepted_at: string | null;
+  created_at: string;
+}
+
+export interface Availability {
+  id: string;
+  user_id: string;
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 // Supabase Database type for typed queries
 export type Database = {
   public: {
@@ -249,6 +406,11 @@ export type Database = {
         Insert: Partial<Intervenant> & Pick<Intervenant, "user_id" | "domain" | "hourly_rate_cents" | "packages">;
         Update: Partial<Intervenant>;
       };
+      livrables: {
+        Row: Livrable;
+        Insert: Partial<Livrable> & Pick<Livrable, "user_id" | "module_id" | "type" | "file_name" | "file_url">;
+        Update: Partial<Livrable>;
+      };
       notifications: {
         Row: Notification;
         Insert: Partial<Notification> & Pick<Notification, "user_id" | "type" | "title" | "body">;
@@ -263,6 +425,56 @@ export type Database = {
         Row: Task;
         Insert: Partial<Task> & Pick<Task, "user_id" | "title">;
         Update: Partial<Task>;
+      };
+      questionnaires: {
+        Row: Questionnaire;
+        Insert: Partial<Questionnaire> & Pick<Questionnaire, "title" | "phase">;
+        Update: Partial<Questionnaire>;
+      };
+      questionnaire_questions: {
+        Row: QuestionnaireQuestion;
+        Insert: Partial<QuestionnaireQuestion> & Pick<QuestionnaireQuestion, "questionnaire_id" | "label" | "type">;
+        Update: Partial<QuestionnaireQuestion>;
+      };
+      questionnaire_responses: {
+        Row: QuestionnaireResponse;
+        Insert: Partial<QuestionnaireResponse> & Pick<QuestionnaireResponse, "questionnaire_id" | "user_id">;
+        Update: Partial<QuestionnaireResponse>;
+      };
+      parcours_templates: {
+        Row: ParcoursTemplate;
+        Insert: Partial<ParcoursTemplate> & Pick<ParcoursTemplate, "title" | "category" | "created_by">;
+        Update: Partial<ParcoursTemplate>;
+      };
+      assigned_parcours: {
+        Row: AssignedParcours;
+        Insert: Partial<AssignedParcours> & Pick<AssignedParcours, "title" | "assigned_to" | "assigned_by" | "start_date" | "end_date">;
+        Update: Partial<AssignedParcours>;
+      };
+      parcours_modules: {
+        Row: ParcoursModule;
+        Insert: Partial<ParcoursModule> & Pick<ParcoursModule, "parcours_id" | "module_id" | "order_index">;
+        Update: Partial<ParcoursModule>;
+      };
+      calendly_settings: {
+        Row: CalendlySettings;
+        Insert: Partial<CalendlySettings> & Pick<CalendlySettings, "user_id" | "calendly_url">;
+        Update: Partial<CalendlySettings>;
+      };
+      calendly_bookings: {
+        Row: CalendlyBooking;
+        Insert: Partial<CalendlyBooking> & Pick<CalendlyBooking, "calendly_event_id" | "user_id" | "event_type" | "start_time" | "end_time">;
+        Update: Partial<CalendlyBooking>;
+      };
+      invitation_tokens: {
+        Row: InvitationToken;
+        Insert: Partial<InvitationToken> & Pick<InvitationToken, "token" | "company_id" | "created_by" | "role" | "expires_at">;
+        Update: Partial<InvitationToken>;
+      };
+      availabilities: {
+        Row: Availability;
+        Insert: Partial<Availability> & Pick<Availability, "user_id" | "day_of_week" | "start_time" | "end_time">;
+        Update: Partial<Availability>;
       };
     };
   };

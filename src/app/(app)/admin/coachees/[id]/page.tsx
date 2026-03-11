@@ -1,8 +1,7 @@
 "use client";
 
-import { use, useState } from "react";
-import { cn } from "@/lib/utils";
-import { Award, Download, BarChart3, BookOpen, Phone, FileText, StickyNote } from "lucide-react";
+import { use, useState, useMemo, useCallback } from "react";
+import { Award, Download, Loader2 } from "lucide-react";
 import { CoacheeHeader } from "@/components/admin/coachee-header";
 import { KpiGauge } from "@/components/ui/kpi-gauge";
 import { KpiHistoryChart } from "@/components/admin/kpi-history-chart";
@@ -10,24 +9,18 @@ import { ModuleTimeline } from "@/components/admin/module-timeline";
 import { LivrablesList } from "@/components/admin/livrables-list";
 import { CallHistory } from "@/components/admin/call-history";
 import { SatisfactionChart } from "@/components/admin/satisfaction-chart";
-import { CoacheeAnnotations } from "@/components/admin/coachee-annotations";
-import { mockCoachees, mockAnnotations } from "@/lib/mock-data";
-
-function getCoacheeData(id: string) {
-  const coachee = mockCoachees.find((c) => c.id === id) || null;
-  const annotations = mockAnnotations.filter((a) => a.coachee_id === id);
-  return { coachee, annotations };
-}
-
-type Tab = "kpis" | "modules" | "rdv" | "documents" | "notes";
-
-const tabs: { key: Tab; label: string; icon: React.ElementType }[] = [
-  { key: "kpis", label: "Indicateurs", icon: BarChart3 },
-  { key: "modules", label: "Modules", icon: BookOpen },
-  { key: "rdv", label: "RDV / Appels", icon: Phone },
-  { key: "documents", label: "Documents", icon: FileText },
-  { key: "notes", label: "Notes", icon: StickyNote },
-];
+import { KpiScoringModal } from "@/components/admin/kpi-scoring-modal";
+import { AssignModuleModal } from "@/components/admin/assign-module-modal";
+import { SendMessageModal } from "@/components/admin/send-message-modal";
+import { useProfile, useUserModuleProgress, useLatestKpiScore, useKpiScores, useCompany, useAppointments, useLivrables } from "@/hooks/use-supabase-data";
+import type { AdminLivrable } from "@/components/admin/livrables-list";
+import { mockCoachees } from "@/lib/mock-data";
+import { useToast } from "@/components/ui/toast";
+import { format } from "date-fns";
+import { fr } from "date-fns/locale";
+import { pdf } from "@react-pdf/renderer";
+import { IndividualReportPDF } from "@/components/reports/individual-report-pdf";
+import type { IndividualReportData } from "@/components/reports/individual-report-pdf";
 
 export default function CoacheeDetailPage({
   params,
@@ -35,8 +28,176 @@ export default function CoacheeDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const { coachee, annotations } = getCoacheeData(id);
-  const [activeTab, setActiveTab] = useState<Tab>("kpis");
+  const { toast } = useToast();
+
+  // Fetch real data from Supabase
+  const { data: profile, loading: profileLoading } = useProfile(id);
+  const { data: moduleProgress } = useUserModuleProgress(id);
+  const { data: latestKpi } = useLatestKpiScore(id);
+  const { data: kpiHistory } = useKpiScores({ user_id: id });
+  const { data: company } = useCompany(profile?.company_id || undefined);
+  const { data: appointments } = useAppointments({ client_id: id });
+  const { data: supabaseLivrables } = useLivrables({ user_id: id });
+
+  // Fallback mock coachee
+  const mockCoachee = mockCoachees.find((c) => c.id === id);
+
+  // Transform Supabase data to match component props
+  const coachee = useMemo(() => {
+    if (profile) {
+      return {
+        id: profile.id,
+        first_name: profile.first_name,
+        last_name: profile.last_name,
+        email: profile.email,
+        avatar_url: profile.avatar_url,
+        type: (profile.coaching_type || "individuel") as "individuel" | "entreprise",
+        status: profile.status === "active" ? "actif" as const : profile.status === "inactive" ? "inactif" as const : "archive" as const,
+        company_id: profile.company_id,
+        company_name: company?.name || null,
+        start_date: profile.created_at,
+        current_module: null,
+        kpis: latestKpi
+          ? {
+              investissement: latestKpi.investissement,
+              efficacite: latestKpi.efficacite,
+              participation: latestKpi.participation,
+            }
+          : { investissement: 7, efficacite: 7, participation: 7 },
+        kpi_history: kpiHistory?.map((k) => ({
+          month: format(new Date(k.scored_at), "MMM yyyy", { locale: fr }),
+          investissement: k.investissement,
+          efficacite: k.efficacite,
+          participation: k.participation,
+        })) || [],
+        module_progress: moduleProgress?.map((mp) => ({
+          module_id: mp.module_id,
+          module_title: mp.module?.title || "Module",
+          status: mp.status === "validated" ? "complete" as const : mp.status === "in_progress" ? "en_cours" as const : "non_commence" as const,
+          satisfaction_score: mp.satisfaction_score || undefined,
+        })) || [],
+        livrables: [],
+        calls: appointments?.map((appt) => ({
+          id: appt.id,
+          date: appt.datetime_start,
+          type: (appt.type === "discovery" ? "decouverte" : appt.type === "coaching" ? "coaching" : "review") as "decouverte" | "coaching" | "review",
+          duration_minutes: 60,
+          notes: appt.notes || "",
+        })) || [],
+        certificates: moduleProgress
+          ?.filter((mp) => mp.status === "validated")
+          .map((mp) => ({
+            id: `cert-${mp.id}`,
+            module_id: mp.module_id,
+            module_title: mp.module?.title || "Module",
+            earned_date: mp.validated_at || mp.created_at,
+          })) || [],
+        last_activity: profile.updated_at,
+      };
+    }
+    return mockCoachee;
+  }, [profile, company, latestKpi, kpiHistory, moduleProgress, appointments, mockCoachee]);
+
+  // Transform Supabase livrables to admin format
+  const coacheeLivrables = useMemo<AdminLivrable[]>(() => {
+    if (supabaseLivrables && supabaseLivrables.length > 0) {
+      return supabaseLivrables.map((l) => ({
+        id: l.id,
+        module_title: l.module?.title || "Module",
+        type: l.type,
+        submission_date: l.submitted_at,
+        status: l.status,
+        file_name: l.file_name,
+        file_url: l.file_url,
+      }));
+    }
+    // Fallback to mock coachee livrables
+    return (coachee?.livrables || []).map((l) => ({
+      id: l.id,
+      module_title: l.module_title,
+      type: l.type as "ecrit" | "audio" | "video",
+      submission_date: l.submission_date,
+      status: l.status as "soumis" | "en_attente" | "valide",
+      file_name: l.file_name,
+    }));
+  }, [supabaseLivrables, coachee]);
+
+  const [showKpiModal, setShowKpiModal] = useState(false);
+  const [showAssignModule, setShowAssignModule] = useState(false);
+  const [showSendMessage, setShowSendMessage] = useState(false);
+  const [kpis, setKpis] = useState(coachee?.kpis || { investissement: 0, efficacite: 0, participation: 0 });
+
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+
+  const handleGenerateReport = useCallback(async () => {
+    if (!coachee) return;
+
+    setIsGeneratingPdf(true);
+    toast("Generation du rapport PDF en cours...", "info");
+
+    try {
+      const reportData: IndividualReportData = {
+        firstName: coachee.first_name,
+        lastName: coachee.last_name,
+        email: coachee.email,
+        type: coachee.type,
+        companyName: coachee.company_name,
+        startDate: format(new Date(coachee.start_date), "d MMMM yyyy", { locale: fr }),
+        currentModule: coachee.module_progress.find((m) => m.status === "en_cours")?.module_title || null,
+        kpis: kpis,
+        kpiHistory: coachee.kpi_history.map((k) => ({
+          month: k.month,
+          investissement: k.investissement,
+          efficacite: k.efficacite,
+          participation: k.participation,
+        })),
+        moduleProgress: coachee.module_progress.map((m) => ({
+          moduleTitle: m.module_title,
+          status: m.status as "complete" | "en_cours" | "non_commence" | "a_venir",
+          satisfactionScore: m.satisfaction_score,
+        })),
+        livrables: coacheeLivrables.map((l) => ({
+          moduleTitle: l.module_title,
+          type: l.type,
+          submissionDate: l.submission_date,
+          status: l.status as "soumis" | "en_attente" | "valide",
+          fileName: l.file_name,
+        })),
+        satisfactionScores: coachee.module_progress
+          .filter((m) => m.satisfaction_score != null)
+          .map((m) => ({
+            moduleTitle: m.module_title,
+            score: m.satisfaction_score!,
+          })),
+        coachNotes: "",
+      };
+
+      const blob = await pdf(<IndividualReportPDF data={reportData} />).toBlob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `rapport-${coachee.first_name}-${coachee.last_name}-${format(new Date(), "yyyy-MM-dd")}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast("Rapport PDF telecharge avec succes !", "success");
+    } catch (err) {
+      console.error("PDF generation error:", err);
+      toast("Erreur lors de la generation du rapport", "error");
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  }, [coachee, kpis, toast]);
+
+  if (profileLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-accent" />
+      </div>
+    );
+  }
 
   if (!coachee) {
     return (
@@ -49,186 +210,130 @@ export default function CoacheeDetailPage({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <CoacheeHeader coachee={coachee} />
+      <CoacheeHeader
+        coachee={coachee}
+        onEditKpis={() => setShowKpiModal(true)}
+        onAssignModule={() => setShowAssignModule(true)}
+        onSendMessage={() => setShowSendMessage(true)}
+        onGenerateReport={handleGenerateReport}
+      />
 
-      {/* KPI Gauges (always visible) */}
+      {/* KPI Gauges */}
+      <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-heading font-semibold text-sm text-dark">
+            Indicateurs actuels
+          </h3>
+          <button
+            onClick={() => setShowKpiModal(true)}
+            className="text-xs text-accent hover:text-accent/80 font-medium transition-colors"
+          >
+            Modifier
+          </button>
+        </div>
+        <div className="flex items-center justify-center gap-6 md:gap-12">
+          <KpiGauge
+            value={kpis.investissement}
+            label="Investissement"
+            size="lg"
+          />
+          <KpiGauge
+            value={kpis.efficacite}
+            label="Efficacite"
+            size="lg"
+          />
+          <KpiGauge
+            value={kpis.participation}
+            label="Participation"
+            size="lg"
+          />
+        </div>
+      </div>
+
+      {/* Charts row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <KpiHistoryChart data={coachee.kpi_history} />
+        <SatisfactionChart modules={coachee.module_progress} />
+      </div>
+
+      {/* Module timeline */}
+      <ModuleTimeline modules={coachee.module_progress} />
+
+      {/* Livrables and Calls */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <LivrablesList livrables={coacheeLivrables} />
+        <CallHistory calls={coachee.calls} />
+      </div>
+
+      {/* Certificates */}
       <div className="bg-white rounded-xl border border-gray-200 p-5">
         <h3 className="font-heading font-semibold text-sm text-dark mb-4">
-          Indicateurs actuels
+          Certificats obtenus
         </h3>
-        <div className="flex items-center justify-center gap-6 md:gap-12">
-          <KpiGauge value={coachee.kpis.investissement} label="Investissement" size="lg" />
-          <KpiGauge value={coachee.kpis.efficacite} label="Efficacite" size="lg" />
-          <KpiGauge value={coachee.kpis.participation} label="Participation" size="lg" />
-        </div>
-      </div>
-
-      {/* Tabs navigation */}
-      <div className="bg-white rounded-xl border border-gray-200">
-        <div className="border-b border-gray-100 overflow-x-auto">
-          <nav className="flex min-w-max">
-            {tabs.map((tab) => {
-              const Icon = tab.icon;
-              const isActive = activeTab === tab.key;
-              return (
-                <button
-                  key={tab.key}
-                  onClick={() => setActiveTab(tab.key)}
-                  className={cn(
-                    "flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
-                    isActive
-                      ? "border-accent text-accent"
-                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-200"
-                  )}
-                >
-                  <Icon className="w-4 h-4" />
-                  {tab.label}
-                  {tab.key === "notes" && annotations.length > 0 && (
-                    <span className="bg-accent/10 text-accent text-[10px] font-semibold px-1.5 py-0.5 rounded-full">
-                      {annotations.length}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </nav>
-        </div>
-
-        {/* Tab content */}
-        <div className="p-5">
-          {/* KPIs tab */}
-          {activeTab === "kpis" && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <KpiHistoryChart data={coachee.kpi_history} />
-                <SatisfactionChart modules={coachee.module_progress} />
-              </div>
-              {/* Profil info */}
-              <div className="bg-gray-50 rounded-xl p-5">
-                <h4 className="font-heading font-semibold text-sm text-dark mb-3">
-                  Informations
-                </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <div>
-                    <p className="text-xs text-gray-500 mb-0.5">Email</p>
-                    <p className="text-sm text-dark">{coachee.email}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 mb-0.5">Type</p>
-                    <p className="text-sm text-dark capitalize">{coachee.type}</p>
-                  </div>
-                  {coachee.company_name && (
-                    <div>
-                      <p className="text-xs text-gray-500 mb-0.5">Entreprise</p>
-                      <p className="text-sm text-dark">{coachee.company_name}</p>
-                    </div>
-                  )}
-                  <div>
-                    <p className="text-xs text-gray-500 mb-0.5">Date de debut</p>
-                    <p className="text-sm text-dark">
-                      {new Date(coachee.start_date).toLocaleDateString("fr-FR")}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 mb-0.5">Module en cours</p>
-                    <p className="text-sm text-dark">
-                      {coachee.current_module || "Aucun"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 mb-0.5">Statut</p>
-                    <p className="text-sm text-dark capitalize">{coachee.status}</p>
-                  </div>
+        {coachee.certificates.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-6">
+            Aucun certificat obtenu pour le moment.
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {coachee.certificates.map((cert) => (
+              <div
+                key={cert.id}
+                className="flex items-center gap-3 p-3 rounded-lg border border-accent/20 bg-accent/5"
+              >
+                <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center shrink-0">
+                  <Award className="w-5 h-5 text-accent" />
                 </div>
-              </div>
-            </div>
-          )}
-
-          {/* Modules tab */}
-          {activeTab === "modules" && (
-            <div className="space-y-6">
-              <ModuleTimeline modules={coachee.module_progress} />
-              {/* Module details */}
-              <div className="space-y-3">
-                {coachee.module_progress.map((mod) => (
-                  <div
-                    key={mod.module_id}
-                    className="flex items-center justify-between p-3 rounded-lg border border-gray-100 bg-gray-50/50"
-                  >
-                    <div>
-                      <p className="text-sm font-medium text-dark">{mod.module_title}</p>
-                      <p className="text-xs text-gray-500 capitalize mt-0.5">
-                        {mod.status.replace("_", " ")}
-                      </p>
-                    </div>
-                    {mod.satisfaction_score !== undefined && (
-                      <div className="text-right">
-                        <p className="text-lg font-bold font-heading text-accent">
-                          {mod.satisfaction_score}
-                        </p>
-                        <p className="text-[10px] text-gray-400">/10 satisfaction</p>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* RDV / Appels tab */}
-          {activeTab === "rdv" && (
-            <CallHistory calls={coachee.calls} />
-          )}
-
-          {/* Documents tab */}
-          {activeTab === "documents" && (
-            <div className="space-y-6">
-              <LivrablesList livrables={coachee.livrables} />
-              {/* Certificates */}
-              <div>
-                <h4 className="font-heading font-semibold text-sm text-dark mb-3 flex items-center gap-2">
-                  <Award className="w-4 h-4 text-accent" />
-                  Certificats obtenus
-                </h4>
-                {coachee.certificates.length === 0 ? (
-                  <p className="text-sm text-gray-400 text-center py-6">
-                    Aucun certificat obtenu pour le moment.
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-dark truncate">
+                    {cert.module_title}
                   </p>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {coachee.certificates.map((cert) => (
-                      <div
-                        key={cert.id}
-                        className="flex items-center gap-3 p-3 rounded-lg border border-accent/20 bg-accent/5"
-                      >
-                        <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center shrink-0">
-                          <Award className="w-5 h-5 text-accent" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-dark truncate">
-                            {cert.module_title}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {new Date(cert.earned_date).toLocaleDateString("fr-FR")}
-                          </p>
-                        </div>
-                        <button className="text-gray-400 hover:text-accent transition-colors shrink-0">
-                          <Download className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                  <p className="text-xs text-gray-500">
+                    {new Date(cert.earned_date).toLocaleDateString("fr-FR")}
+                  </p>
+                </div>
+                <button className="text-gray-400 hover:text-accent transition-colors shrink-0">
+                  <Download className="w-4 h-4" />
+                </button>
               </div>
-            </div>
-          )}
-
-          {/* Notes tab */}
-          {activeTab === "notes" && (
-            <CoacheeAnnotations annotations={annotations} />
-          )}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
+
+      {/* Modals */}
+      {showKpiModal && (
+        <KpiScoringModal
+          coacheeId={coachee.id}
+          coacheeName={`${coachee.first_name} ${coachee.last_name}`}
+          currentKpis={kpis}
+          onClose={() => setShowKpiModal(false)}
+          onSave={(newKpis) => {
+            setKpis({
+              investissement: newKpis.investissement,
+              efficacite: newKpis.efficacite,
+              participation: newKpis.participation,
+            });
+          }}
+        />
+      )}
+
+      {showAssignModule && (
+        <AssignModuleModal
+          coacheeId={coachee.id}
+          coacheeName={`${coachee.first_name} ${coachee.last_name}`}
+          currentModules={coachee.module_progress.map((m) => m.module_id)}
+          onClose={() => setShowAssignModule(false)}
+        />
+      )}
+
+      {showSendMessage && (
+        <SendMessageModal
+          recipientId={coachee.id}
+          recipientName={`${coachee.first_name} ${coachee.last_name}`}
+          onClose={() => setShowSendMessage(false)}
+        />
+      )}
     </div>
   );
 }

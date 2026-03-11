@@ -1,12 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   User,
   Mail,
   Phone,
   Building2,
-  Calendar,
   Camera,
   Lock,
   LogOut,
@@ -17,86 +16,160 @@ import {
   Loader2,
   Star,
   BookOpen,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { KpiGauge } from "@/components/ui/kpi-gauge";
-import { BadgesGrid } from "@/components/ui/badges-grid";
-import { ChangePasswordModal } from "@/components/ui/change-password-modal";
 import { useAuth } from "@/components/providers/auth-provider";
-
-// ---------- Mock user data (Isabelle Fontaine - individuel) ----------
-const mockUser = {
-  firstName: "Isabelle",
-  lastName: "Fontaine",
-  email: "isabelle.fontaine@email.fr",
-  phone: "06 98 76 54 32",
-  type: "individuel" as const,
-  companyName: null as string | null,
-  startDate: "2025-06-01",
-  currentModule: "Confiance en soi",
-  kpis: { investissement: 9, efficacite: 9, participation: 10 },
-  moduleProgress: [
-    {
-      moduleTitle: "Intelligence Emotionnelle",
-      status: "complete" as const,
-      satisfactionScore: 10,
-    },
-    {
-      moduleTitle: "Estime de soi",
-      status: "complete" as const,
-      satisfactionScore: 9,
-    },
-    {
-      moduleTitle: "Confiance en soi",
-      status: "en_cours" as const,
-      satisfactionScore: undefined,
-    },
-  ],
-  certificates: [
-    {
-      id: "cert-4",
-      moduleTitle: "Intelligence Emotionnelle",
-      earnedDate: "2025-08-01",
-    },
-    {
-      id: "cert-5",
-      moduleTitle: "Estime de soi",
-      earnedDate: "2025-10-15",
-    },
-  ],
-  satisfactionHistory: [
-    { moduleTitle: "Intelligence Emotionnelle", score: 10 },
-    { moduleTitle: "Estime de soi", score: 9 },
-  ],
-};
+import {
+  useCompany,
+  useLatestKpiScore,
+  useUserModuleProgress,
+  updateProfile,
+} from "@/hooks/use-supabase-data";
+import { useToast } from "@/components/ui/toast";
+import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
 
 interface GeneratingState {
   [key: string]: boolean;
 }
 
 export default function CoachingProfilPage() {
-  const [firstName, setFirstName] = useState(mockUser.firstName);
-  const [lastName, setLastName] = useState(mockUser.lastName);
-  const [phone, setPhone] = useState(mockUser.phone);
+  const { user, profile, loading: authLoading } = useAuth();
+  const { toast } = useToast();
+  const router = useRouter();
+  const supabase = createClient();
+
+  const { data: company } = useCompany(profile?.company_id || undefined);
+  const { data: latestKpi } = useLatestKpiScore(user?.id);
+  const { data: moduleProgress } = useUserModuleProgress(user?.id);
+
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [phone, setPhone] = useState("");
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState<GeneratingState>({});
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const { signOut } = useAuth();
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
-  function handleSave() {
+  // Sync form fields when profile loads
+  useEffect(() => {
+    if (profile) {
+      setFirstName(profile.first_name || "");
+      setLastName(profile.last_name || "");
+      setPhone(profile.phone || "");
+    }
+  }, [profile]);
+
+  const kpis = useMemo(() => {
+    if (latestKpi) {
+      return {
+        investissement: latestKpi.investissement,
+        efficacite: latestKpi.efficacite,
+        participation: latestKpi.participation,
+      };
+    }
+    return { investissement: 7, efficacite: 7, participation: 7 };
+  }, [latestKpi]);
+
+  const modules = useMemo(() => {
+    if (moduleProgress && moduleProgress.length > 0) {
+      return moduleProgress.map((mp) => ({
+        moduleTitle: mp.module?.title || "Module",
+        status: mp.status === "validated"
+          ? ("complete" as const)
+          : mp.status === "in_progress"
+            ? ("en_cours" as const)
+            : ("non_commence" as const),
+        satisfactionScore: mp.satisfaction_score || undefined,
+      }));
+    }
+    return [];
+  }, [moduleProgress]);
+
+  const completedModules = modules.filter((m) => m.status === "complete").length;
+  const totalModules = modules.length;
+  const completionPct = totalModules > 0 ? Math.round((completedModules / totalModules) * 100) : 0;
+
+  // Certificates from completed modules
+  const certificates = useMemo(() => {
+    if (moduleProgress) {
+      return moduleProgress
+        .filter((mp) => mp.status === "validated")
+        .map((mp) => ({
+          id: mp.id || mp.module_id,
+          moduleTitle: mp.module?.title || "Module",
+          earnedDate: mp.validated_at || mp.created_at || new Date().toISOString(),
+        }));
+    }
+    return [];
+  }, [moduleProgress]);
+
+  const satisfactionHistory = modules
+    .filter((m) => m.satisfactionScore != null)
+    .map((m) => ({ moduleTitle: m.moduleTitle, score: m.satisfactionScore! }));
+
+  async function handleSave() {
+    if (!user?.id) return;
+
     setSaving(true);
-    setTimeout(() => {
+    try {
+      const { error } = await updateProfile(user.id, {
+        first_name: firstName,
+        last_name: lastName,
+        phone: phone || undefined,
+      });
+
+      if (error) {
+        toast("Erreur lors de la sauvegarde", "error");
+      } else {
+        setSaved(true);
+        toast("Profil mis a jour avec succes", "success");
+        setTimeout(() => setSaved(false), 2000);
+      }
+    } catch {
+      toast("Erreur lors de la sauvegarde", "error");
+    } finally {
       setSaving(false);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-    }, 800);
+    }
   }
 
-  async function handleDownloadCertificate(
-    moduleTitle: string,
-    earnedDate: string
-  ) {
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    router.push("/connexion");
+  }
+
+  async function handlePasswordChange() {
+    if (newPassword.length < 8) {
+      toast("Le mot de passe doit contenir au moins 8 caracteres", "error");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast("Les mots de passe ne correspondent pas", "error");
+      return;
+    }
+
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) {
+        toast(error.message, "error");
+      } else {
+        toast("Mot de passe modifie avec succes", "success");
+        setNewPassword("");
+        setConfirmPassword("");
+        setShowPasswordForm(false);
+      }
+    } catch {
+      toast("Erreur lors du changement de mot de passe", "error");
+    }
+  }
+
+  async function handleDownloadCertificate(moduleTitle: string, earnedDate: string) {
     const key = `cert-${moduleTitle}`;
     setGenerating((prev) => ({ ...prev, [key]: true }));
     try {
@@ -121,33 +194,36 @@ export default function CoachingProfilPage() {
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error("Erreur generation certificat:", err);
+      toast("Erreur lors de la generation du certificat", "error");
     } finally {
       setGenerating((prev) => ({ ...prev, [key]: false }));
     }
   }
 
-  const initials = `${firstName[0] || ""}${lastName[0] || ""}`;
-  const completedModules = mockUser.moduleProgress.filter(
-    (m) => m.status === "complete"
-  ).length;
-  const totalModules = mockUser.moduleProgress.length;
-  const completionPct =
-    totalModules > 0 ? Math.round((completedModules / totalModules) * 100) : 0;
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-accent" />
+      </div>
+    );
+  }
+
+  const email = profile?.email || user?.email || "";
+  const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+  const coachingType = profile?.coaching_type || "individuel";
+  const companyName = company?.name || null;
 
   return (
     <div className="space-y-6 max-w-3xl">
       {/* Page header */}
       <div className="flex items-center gap-3">
         <User className="w-6 h-6 text-accent" />
-        <h1 className="font-heading text-2xl font-bold text-dark">
-          Mon Profil
-        </h1>
+        <h1 className="font-heading text-2xl font-bold text-dark">Mon Profil</h1>
       </div>
 
       {/* Profile header card */}
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5">
-          {/* Avatar */}
           <div className="relative">
             <div className="w-20 h-20 rounded-full bg-primary flex items-center justify-center text-2xl font-bold text-white">
               {initials}
@@ -164,23 +240,22 @@ export default function CoachingProfilPage() {
             <h2 className="text-xl font-bold text-dark">
               {firstName} {lastName}
             </h2>
-            <p className="text-sm text-gray-500 mt-0.5">{mockUser.email}</p>
+            <p className="text-sm text-gray-500 mt-0.5">{email}</p>
             <div className="flex flex-wrap justify-center sm:justify-start gap-2 mt-3">
               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-accent/10 text-accent">
                 <BookOpen className="w-3 h-3" />
-                Coache {mockUser.type === "individuel" ? "Individuel" : "Entreprise"}
+                Coache {coachingType === "individuel" ? "Individuel" : "Entreprise"}
               </span>
-              {mockUser.companyName && (
+              {companyName && (
                 <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary">
                   <Building2 className="w-3 h-3" />
-                  {mockUser.companyName}
+                  {companyName}
                 </span>
               )}
-              {mockUser.certificates.length > 0 && (
+              {certificates.length > 0 && (
                 <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-success/10 text-success">
                   <Award className="w-3 h-3" />
-                  {mockUser.certificates.length} certificat
-                  {mockUser.certificates.length > 1 ? "s" : ""}
+                  {certificates.length} certificat{certificates.length > 1 ? "s" : ""}
                 </span>
               )}
             </div>
@@ -195,9 +270,7 @@ export default function CoachingProfilPage() {
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">
-              Prenom
-            </label>
+            <label className="block text-xs font-medium text-gray-500 mb-1.5">Prenom</label>
             <div className="relative">
               <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
@@ -209,9 +282,7 @@ export default function CoachingProfilPage() {
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">
-              Nom
-            </label>
+            <label className="block text-xs font-medium text-gray-500 mb-1.5">Nom</label>
             <div className="relative">
               <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
@@ -223,9 +294,7 @@ export default function CoachingProfilPage() {
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">
-              Telephone
-            </label>
+            <label className="block text-xs font-medium text-gray-500 mb-1.5">Telephone</label>
             <div className="relative">
               <Phone className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
@@ -237,14 +306,12 @@ export default function CoachingProfilPage() {
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">
-              Email
-            </label>
+            <label className="block text-xs font-medium text-gray-500 mb-1.5">Email</label>
             <div className="relative">
               <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="email"
-                value={mockUser.email}
+                value={email}
                 disabled
                 className="w-full pl-9 pr-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-gray-50 text-gray-500 cursor-not-allowed"
               />
@@ -252,126 +319,99 @@ export default function CoachingProfilPage() {
           </div>
         </div>
 
-        {/* Avatar upload placeholder */}
         <div className="mt-4">
-          <label className="block text-xs font-medium text-gray-500 mb-1.5">
-            Photo de profil
-          </label>
+          <label className="block text-xs font-medium text-gray-500 mb-1.5">Photo de profil</label>
           <div className="border-2 border-dashed border-gray-200 rounded-lg p-4 text-center hover:border-accent/30 transition-colors cursor-pointer">
             <Camera className="w-5 h-5 text-gray-400 mx-auto mb-1" />
-            <p className="text-xs text-gray-500">
-              Cliquer pour telecharger une photo
-            </p>
-            <p className="text-[10px] text-gray-400 mt-0.5">
-              JPG, PNG - Max 2 Mo
-            </p>
+            <p className="text-xs text-gray-500">Cliquer pour telecharger une photo</p>
+            <p className="text-[10px] text-gray-400 mt-0.5">JPG, PNG - Max 2 Mo</p>
           </div>
         </div>
       </div>
 
       {/* Parcours Summary */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <h3 className="font-heading text-base font-semibold text-dark mb-4">
-          Mon Parcours
-        </h3>
-        <div className="flex flex-col sm:flex-row items-start gap-6">
-          <div className="flex-1 w-full">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-sm text-gray-500">Progression globale</p>
-              <span className="text-sm font-bold text-dark">
-                {completionPct}%
-              </span>
-            </div>
-            <div className="h-3 bg-gray-100 rounded-full overflow-hidden mb-3">
-              <div
-                className="h-full bg-accent rounded-full transition-all"
-                style={{ width: `${completionPct}%` }}
-              />
-            </div>
-            <p className="text-xs text-gray-500 mb-4">
-              {completedModules}/{totalModules} modules termines
-            </p>
-
-            {/* Module list */}
-            <div className="space-y-2">
-              {mockUser.moduleProgress.map((mod) => (
+      {modules.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <h3 className="font-heading text-base font-semibold text-dark mb-4">Mon Parcours</h3>
+          <div className="flex flex-col sm:flex-row items-start gap-6">
+            <div className="flex-1 w-full">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm text-gray-500">Progression globale</p>
+                <span className="text-sm font-bold text-dark">{completionPct}%</span>
+              </div>
+              <div className="h-3 bg-gray-100 rounded-full overflow-hidden mb-3">
                 <div
-                  key={mod.moduleTitle}
-                  className="flex items-center justify-between py-2 px-3 rounded-lg bg-gray-50"
-                >
-                  <div className="flex items-center gap-2">
-                    <div
-                      className={cn(
-                        "w-2 h-2 rounded-full",
-                        mod.status === "complete"
-                          ? "bg-success"
-                          : mod.status === "en_cours"
-                            ? "bg-accent"
-                            : "bg-gray-300"
-                      )}
-                    />
-                    <span className="text-sm text-dark">{mod.moduleTitle}</span>
-                  </div>
-                  <span
-                    className={cn(
-                      "text-xs font-medium",
-                      mod.status === "complete"
-                        ? "text-success"
-                        : mod.status === "en_cours"
-                          ? "text-accent"
-                          : "text-gray-400"
-                    )}
-                  >
-                    {mod.status === "complete"
-                      ? "Termine"
-                      : mod.status === "en_cours"
-                        ? "En cours"
-                        : "A venir"}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
+                  className="h-full bg-accent rounded-full transition-all"
+                  style={{ width: `${completionPct}%` }}
+                />
+              </div>
+              <p className="text-xs text-gray-500 mb-4">
+                {completedModules}/{totalModules} modules termines
+              </p>
 
-          {/* KPI Gauges */}
-          <div className="flex sm:flex-col gap-4">
-            <KpiGauge
-              value={mockUser.kpis.investissement}
-              label="Investissement"
-              size="sm"
-            />
-            <KpiGauge
-              value={mockUser.kpis.efficacite}
-              label="Efficacite"
-              size="sm"
-            />
-            <KpiGauge
-              value={mockUser.kpis.participation}
-              label="Participation"
-              size="sm"
-            />
+              <div className="space-y-2">
+                {modules.map((mod) => (
+                  <div
+                    key={mod.moduleTitle}
+                    className="flex items-center justify-between py-2 px-3 rounded-lg bg-gray-50"
+                  >
+                    <div className="flex items-center gap-2">
+                      <div
+                        className={cn(
+                          "w-2 h-2 rounded-full",
+                          mod.status === "complete"
+                            ? "bg-success"
+                            : mod.status === "en_cours"
+                              ? "bg-accent"
+                              : "bg-gray-300"
+                        )}
+                      />
+                      <span className="text-sm text-dark">{mod.moduleTitle}</span>
+                    </div>
+                    <span
+                      className={cn(
+                        "text-xs font-medium",
+                        mod.status === "complete"
+                          ? "text-success"
+                          : mod.status === "en_cours"
+                            ? "text-accent"
+                            : "text-gray-400"
+                      )}
+                    >
+                      {mod.status === "complete"
+                        ? "Termine"
+                        : mod.status === "en_cours"
+                          ? "En cours"
+                          : "A venir"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex sm:flex-col gap-4">
+              <KpiGauge value={kpis.investissement} label="Investissement" size="sm" />
+              <KpiGauge value={kpis.efficacite} label="Efficacite" size="sm" />
+              <KpiGauge value={kpis.participation} label="Participation" size="sm" />
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Certificates Section */}
       <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <h3 className="font-heading text-base font-semibold text-dark mb-4">
-          Mes Certificats
-        </h3>
-        {mockUser.certificates.length === 0 ? (
+        <h3 className="font-heading text-base font-semibold text-dark mb-4">Mes Certificats</h3>
+        {certificates.length === 0 ? (
           <div className="text-center py-6">
             <Award className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-            <p className="text-sm text-gray-500">
-              Aucun certificat obtenu pour le moment.
-            </p>
+            <p className="text-sm text-gray-500">Aucun certificat obtenu pour le moment.</p>
             <p className="text-xs text-gray-400 mt-1">
               Completez un module pour obtenir votre certificat.
             </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {mockUser.certificates.map((cert) => {
+            {certificates.map((cert) => {
               const certKey = `cert-${cert.moduleTitle}`;
               const isGen = generating[certKey] || false;
 
@@ -380,7 +420,6 @@ export default function CoachingProfilPage() {
                   key={cert.id}
                   className="relative border border-accent/20 rounded-xl p-4 bg-gradient-to-br from-accent/5 to-transparent"
                 >
-                  {/* Gold accent corner */}
                   <div className="absolute top-0 right-0 w-12 h-12 overflow-hidden rounded-tr-xl">
                     <div className="absolute top-0 right-0 w-16 h-16 bg-accent/10 -translate-x-4 translate-y-[-50%] rotate-45" />
                   </div>
@@ -390,22 +429,20 @@ export default function CoachingProfilPage() {
                       <Award className="w-5 h-5 text-accent" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h4 className="text-sm font-semibold text-dark truncate">
-                        {cert.moduleTitle}
-                      </h4>
+                      <h4 className="text-sm font-semibold text-dark truncate">{cert.moduleTitle}</h4>
                       <p className="text-xs text-gray-500 mt-0.5">
-                        Obtenu le {cert.earnedDate}
+                        Obtenu le{" "}
+                        {new Date(cert.earnedDate).toLocaleDateString("fr-FR", {
+                          day: "numeric",
+                          month: "long",
+                          year: "numeric",
+                        })}
                       </p>
                     </div>
                   </div>
 
                   <button
-                    onClick={() =>
-                      handleDownloadCertificate(
-                        cert.moduleTitle,
-                        cert.earnedDate
-                      )
-                    }
+                    onClick={() => handleDownloadCertificate(cert.moduleTitle, cert.earnedDate)}
                     disabled={isGen}
                     className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-accent text-white text-xs font-medium hover:bg-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
@@ -424,13 +461,13 @@ export default function CoachingProfilPage() {
       </div>
 
       {/* Satisfaction History */}
-      {mockUser.satisfactionHistory.length > 0 && (
+      {satisfactionHistory.length > 0 && (
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <h3 className="font-heading text-base font-semibold text-dark mb-4">
             Historique de Satisfaction
           </h3>
           <div className="space-y-3">
-            {mockUser.satisfactionHistory.map((sat) => (
+            {satisfactionHistory.map((sat) => (
               <div
                 key={sat.moduleTitle}
                 className="flex items-center justify-between py-2.5 px-3 rounded-lg bg-gray-50"
@@ -460,39 +497,89 @@ export default function CoachingProfilPage() {
         </div>
       )}
 
-      {/* Badges */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <BadgesGrid />
-      </div>
-
       {/* Account Actions */}
       <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <h3 className="font-heading text-base font-semibold text-dark mb-4">
-          Mon compte
-        </h3>
+        <h3 className="font-heading text-base font-semibold text-dark mb-4">Mon compte</h3>
         <div className="flex flex-col sm:flex-row gap-3">
           <button
-            onClick={() => setShowPasswordModal(true)}
+            onClick={() => setShowPasswordForm(!showPasswordForm)}
             className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-gray-200 text-sm font-medium text-dark hover:bg-gray-50 transition-colors"
           >
             <Lock className="w-4 h-4 text-gray-500" />
             Changer le mot de passe
           </button>
           <button
-            onClick={signOut}
+            onClick={handleLogout}
             className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-danger/20 text-sm font-medium text-danger hover:bg-danger/5 transition-colors"
           >
             <LogOut className="w-4 h-4" />
             Se deconnecter
           </button>
         </div>
-      </div>
 
-      {/* Password change modal */}
-      <ChangePasswordModal
-        isOpen={showPasswordModal}
-        onClose={() => setShowPasswordModal(false)}
-      />
+        {/* Password change form */}
+        {showPasswordForm && (
+          <div className="mt-4 pt-4 border-t border-gray-100 space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">
+                Nouveau mot de passe
+              </label>
+              <div className="relative">
+                <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Minimum 8 caracteres"
+                  className="w-full pl-9 pr-10 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/30 text-dark"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">
+                Confirmer le mot de passe
+              </label>
+              <div className="relative">
+                <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Retapez le mot de passe"
+                  className="w-full pl-9 pr-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/30 text-dark"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={handlePasswordChange}
+                disabled={!newPassword || !confirmPassword}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Save className="w-4 h-4" />
+                Enregistrer
+              </button>
+              <button
+                onClick={() => {
+                  setShowPasswordForm(false);
+                  setNewPassword("");
+                  setConfirmPassword("");
+                }}
+                className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                Annuler
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Save button */}
       <div className="flex justify-end">

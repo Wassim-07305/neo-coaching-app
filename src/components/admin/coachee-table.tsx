@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { ChevronUp, ChevronDown, UserPlus } from "lucide-react";
+import { ChevronUp, ChevronDown, UserPlus, Check } from "lucide-react";
 import { KpiDotGroup } from "@/components/ui/kpi-badge";
 import type { MockCoachee } from "@/lib/mock-data";
 import { daysAgo } from "@/lib/mock-data";
@@ -14,6 +14,9 @@ type SortDir = "asc" | "desc";
 interface CoacheeTableProps {
   coachees: MockCoachee[];
   companies?: string[];
+  selectedIds?: Set<string>;
+  onToggleSelection?: (id: string) => void;
+  onSelectAll?: () => void;
 }
 
 function getInitials(first: string, last: string): string {
@@ -44,10 +47,18 @@ function SortIcon({
   );
 }
 
-export function CoacheeTable({ coachees, companies: companiesProp }: CoacheeTableProps) {
+export function CoacheeTable({
+  coachees,
+  companies: companiesProp,
+  selectedIds,
+  onToggleSelection,
+  onSelectAll,
+}: CoacheeTableProps) {
   const [filter, setFilter] = useState<string>("tous");
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
+
+  const hasSelection = selectedIds !== undefined && onToggleSelection !== undefined;
 
   // Extract unique companies from coachees if not provided
   const companies = useMemo(() => {
@@ -158,6 +169,25 @@ export function CoacheeTable({ coachees, companies: companiesProp }: CoacheeTabl
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/50">
+                {hasSelection && (
+                  <th className="text-left px-4 py-3 w-10">
+                    <button
+                      onClick={onSelectAll}
+                      className={cn(
+                        "w-5 h-5 rounded border-2 flex items-center justify-center transition-colors",
+                        selectedIds?.size === sorted.length && sorted.length > 0
+                          ? "bg-accent border-accent text-white"
+                          : selectedIds?.size && selectedIds.size > 0
+                            ? "bg-accent/20 border-accent"
+                            : "border-gray-300 hover:border-accent"
+                      )}
+                    >
+                      {selectedIds?.size === sorted.length && sorted.length > 0 && (
+                        <Check className="w-3 h-3" />
+                      )}
+                    </button>
+                  </th>
+                )}
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-10">
                   &nbsp;
                 </th>
@@ -207,8 +237,35 @@ export function CoacheeTable({ coachees, companies: companiesProp }: CoacheeTabl
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {sorted.map((coachee) => (
-                <tr key={coachee.id} className="hover:bg-gray-50/50 transition-colors">
+              {sorted.map((coachee) => {
+                const isSelected = selectedIds?.has(coachee.id) ?? false;
+                return (
+                <tr
+                  key={coachee.id}
+                  className={cn(
+                    "hover:bg-gray-50/50 transition-colors",
+                    isSelected && "bg-accent/5"
+                  )}
+                >
+                  {hasSelection && (
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onToggleSelection?.(coachee.id);
+                        }}
+                        className={cn(
+                          "w-5 h-5 rounded border-2 flex items-center justify-center transition-colors",
+                          isSelected
+                            ? "bg-accent border-accent text-white"
+                            : "border-gray-300 hover:border-accent"
+                        )}
+                      >
+                        {isSelected && <Check className="w-3 h-3" />}
+                      </button>
+                    </td>
+                  )}
                   <td className="px-4 py-3">
                     <div className="w-8 h-8 rounded-full bg-primary-medium/10 flex items-center justify-center text-xs font-semibold text-primary-medium">
                       {getInitials(coachee.first_name, coachee.last_name)}
@@ -261,7 +318,8 @@ export function CoacheeTable({ coachees, companies: companiesProp }: CoacheeTabl
                     {daysAgo(coachee.last_activity)}
                   </td>
                 </tr>
-              ))}
+              );
+              })}
             </tbody>
           </table>
         </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   Calendar,
   CheckCircle,
@@ -12,15 +12,18 @@ import {
   XCircle,
   AlertCircle,
   Filter,
+  Loader2,
 } from "lucide-react";
 import {
   getIntervenantReservations,
   type IntervenantReservation,
 } from "@/lib/mock-data-intervenant";
 import { cn } from "@/lib/utils";
-import { format, parseISO, isAfter, isBefore } from "date-fns";
+import { format, parseISO, isAfter, isBefore, differenceInMinutes } from "date-fns";
 import { fr } from "date-fns/locale";
 import { useToast } from "@/components/ui/toast";
+import { useAuth } from "@/components/providers/auth-provider";
+import { useAppointments, updateAppointmentStatus } from "@/hooks/use-supabase-data";
 
 type StatusFilter = "all" | "scheduled" | "completed" | "cancelled" | "no_show";
 
@@ -36,11 +39,55 @@ const statusConfig: Record<
 
 export default function IntervenantReservationsPage() {
   const { toast } = useToast();
-  const reservations = getIntervenantReservations();
+  const { profile, loading: authLoading } = useAuth();
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [selectedReservation, setSelectedReservation] = useState<IntervenantReservation | null>(
     null
   );
+
+  // Fetch appointments for this intervenant (coach)
+  const { data: appointments, loading: appointmentsLoading } = useAppointments({
+    coach_id: profile?.id,
+  });
+
+  // Transform Supabase appointments to IntervenantReservation format
+  const reservations = useMemo<IntervenantReservation[]>(() => {
+    if (appointments && appointments.length > 0) {
+      return appointments.map((appt) => {
+        const durationMinutes = differenceInMinutes(
+          new Date(appt.datetime_end),
+          new Date(appt.datetime_start)
+        );
+        const hours = Math.ceil(durationMinutes / 60);
+        const packageHours = (hours <= 2 ? 2 : hours <= 4 ? 4 : 6) as 2 | 4 | 6;
+
+        return {
+          id: appt.id,
+          client_name: appt.client ? `${appt.client.first_name} ${appt.client.last_name}` : "Client",
+          client_email: appt.client?.email || "",
+          client_phone: "",
+          datetime_start: appt.datetime_start,
+          datetime_end: appt.datetime_end,
+          status: (appt.status || "scheduled") as IntervenantReservation["status"],
+          zoom_link: appt.zoom_link || null,
+          notes: appt.notes || null,
+          package_hours: packageHours,
+        };
+      });
+    }
+    // Fallback to mock data
+    return getIntervenantReservations();
+  }, [appointments]);
+
+  const isLoading = authLoading || appointmentsLoading;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-accent" />
+      </div>
+    );
+  }
 
   const now = new Date();
 
@@ -56,10 +103,15 @@ export default function IntervenantReservationsPage() {
     (r) => r.status !== "scheduled" || isBefore(parseISO(r.datetime_start), now)
   );
 
-  const handleMarkCompleted = (reservation: IntervenantReservation) => {
-    // TODO: Update in Supabase
-    toast(`Session avec ${reservation.client_name} marquee comme terminee`, "success");
-    setSelectedReservation(null);
+  const handleMarkCompleted = async (reservation: IntervenantReservation) => {
+    try {
+      const { error } = await updateAppointmentStatus(reservation.id, "completed");
+      if (error) throw error;
+      toast(`Session avec ${reservation.client_name} marquee comme terminee`, "success");
+      setSelectedReservation(null);
+    } catch {
+      toast("Erreur lors de la mise a jour", "error");
+    }
   };
 
   return (

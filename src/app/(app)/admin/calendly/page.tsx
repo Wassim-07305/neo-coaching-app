@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import {
@@ -18,19 +18,37 @@ import {
   XCircle,
   MessageSquare,
   Settings,
+  Link2,
+  Key,
+  Loader2,
+  Save,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   mockCalendlyEvents,
-  getUpcomingCalendlyEvents,
-  getPastCalendlyEvents,
   getCalendlyStats,
   locationTypeLabels,
   type CalendlyEvent,
 } from "@/lib/mock-data-calendly";
 import { useToast } from "@/components/ui/toast";
+import { useAuth } from "@/components/providers/auth-provider";
 
 type TabFilter = "upcoming" | "past" | "all";
+
+interface CalendlyBooking {
+  id: string;
+  calendly_event_id: string;
+  user_id: string;
+  client_name: string | null;
+  client_email: string | null;
+  event_type: string;
+  start_time: string;
+  end_time: string;
+  location: string | null;
+  status: string;
+  cancel_url: string | null;
+  reschedule_url: string | null;
+}
 
 const locationIcons: Record<string, typeof Video> = {
   zoom: Video,
@@ -43,26 +61,130 @@ const locationIcons: Record<string, typeof Video> = {
 
 export default function CalendlyPage() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [tab, setTab] = useState<TabFilter>("upcoming");
   const [selectedEvent, setSelectedEvent] = useState<CalendlyEvent | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showConfigModal, setShowConfigModal] = useState(false);
+  const [bookings, setBookings] = useState<CalendlyBooking[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [apiConfigured, setApiConfigured] = useState(false);
 
-  const stats = getCalendlyStats();
+  // Fetch bookings from API
+  const fetchBookings = useCallback(async () => {
+    if (!user?.id) return;
 
-  const events =
-    tab === "upcoming"
-      ? getUpcomingCalendlyEvents()
-      : tab === "past"
-      ? getPastCalendlyEvents()
-      : mockCalendlyEvents;
+    setIsLoading(true);
+    try {
+      const response = await fetch(`/api/calendly/sync?userId=${user.id}`);
+      const result = await response.json();
+
+      if (result.success && result.data) {
+        setBookings(result.data);
+        setApiConfigured(!result.mock && !result.setupRequired);
+      }
+    } catch (error) {
+      console.error("Error fetching Calendly bookings:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    fetchBookings();
+  }, [fetchBookings]);
+
+  // Transform API bookings to CalendlyEvent format for display
+  const transformedEvents = useMemo((): CalendlyEvent[] => {
+    if (bookings.length === 0) return [];
+
+    return bookings.map((b) => ({
+      id: b.id,
+      uri: `https://calendly.com/scheduled_events/${b.calendly_event_id}`,
+      name: b.event_type,
+      status: b.status as "active" | "canceled" | "rescheduled",
+      start_time: b.start_time,
+      end_time: b.end_time,
+      location: b.location ? {
+        type: b.location.includes("zoom") ? "zoom" :
+              b.location.includes("meet.google") ? "google_conference" :
+              b.location.includes("teams") ? "teams" : "physical",
+        join_url: b.location,
+      } : undefined,
+      invitee: {
+        name: b.client_name || "Participant",
+        email: b.client_email || "",
+        timezone: "Europe/Paris",
+      },
+      created_at: b.start_time,
+      updated_at: b.start_time,
+      cancel_url: b.cancel_url || undefined,
+      reschedule_url: b.reschedule_url || undefined,
+    }));
+  }, [bookings]);
+
+  // Use API data if available, otherwise mock data
+  const allEvents = transformedEvents.length > 0 ? transformedEvents : mockCalendlyEvents;
+
+  const events = useMemo(() => {
+    const now = new Date();
+    if (tab === "upcoming") {
+      return allEvents
+        .filter((e) => e.status === "active" && new Date(e.start_time) > now)
+        .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+    } else if (tab === "past") {
+      return allEvents
+        .filter((e) => new Date(e.start_time) <= now || e.status === "canceled")
+        .sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime());
+    }
+    return allEvents;
+  }, [allEvents, tab]);
+
+  const stats = useMemo(() => {
+    if (transformedEvents.length > 0) {
+      const now = new Date();
+      const upcoming = transformedEvents.filter(
+        (e) => e.status === "active" && new Date(e.start_time) > now
+      ).length;
+      const thisMonth = transformedEvents.filter((e) => {
+        const eventDate = new Date(e.start_time);
+        return eventDate.getMonth() === now.getMonth() && eventDate.getFullYear() === now.getFullYear();
+      }).length;
+      const canceled = transformedEvents.filter((e) => e.status === "canceled").length;
+      return { upcoming, thisMonth, total: transformedEvents.length, canceled };
+    }
+    return getCalendlyStats();
+  }, [transformedEvents]);
 
   const handleRefresh = async () => {
+    if (!user?.id) return;
+
     setIsRefreshing(true);
-    // TODO: Call Calendly API to refresh events
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    toast("Donnees Calendly synchronisees", "success");
-    setIsRefreshing(false);
+    try {
+      const response = await fetch(`/api/calendly/sync?userId=${user.id}`);
+      const result = await response.json();
+
+      if (result.success && result.data) {
+        setBookings(result.data);
+        toast(result.synced ? "Donnees Calendly synchronisees" : "Donnees chargees (cache)", "success");
+      } else if (result.setupRequired) {
+        toast("Configurez d'abord votre compte Calendly", "warning");
+        setShowConfigModal(true);
+      }
+    } catch {
+      toast("Erreur lors de la synchronisation", "error");
+    } finally {
+      setIsRefreshing(false);
+    }
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-accent" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -76,6 +198,7 @@ export default function CalendlyPage() {
             </h1>
             <p className="text-sm text-gray-500">
               Reservations et reponses des accompagnements individuels
+              {!apiConfigured && " (donnees de demonstration)"}
             </p>
           </div>
         </div>
@@ -91,7 +214,7 @@ export default function CalendlyPage() {
             Synchroniser
           </button>
           <button
-            onClick={() => toast("Configuration Calendly a venir", "info")}
+            onClick={() => setShowConfigModal(true)}
             className="inline-flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent/90 text-white rounded-lg font-medium transition-colors"
           >
             <Settings className="w-4 h-4" />
@@ -271,6 +394,18 @@ export default function CalendlyPage() {
         <EventDetailModal
           event={selectedEvent}
           onClose={() => setSelectedEvent(null)}
+        />
+      )}
+
+      {/* Configuration modal */}
+      {showConfigModal && (
+        <CalendlyConfigModal
+          userId={user?.id || ""}
+          onClose={() => setShowConfigModal(false)}
+          onSaved={() => {
+            setShowConfigModal(false);
+            fetchBookings();
+          }}
         />
       )}
     </div>
@@ -469,6 +604,159 @@ function EventDetailModal({
             className="w-full px-4 py-3 bg-accent hover:bg-accent/90 text-white rounded-lg font-medium transition-colors"
           >
             Fermer
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Calendly configuration modal
+function CalendlyConfigModal({
+  userId,
+  onClose,
+  onSaved,
+}: {
+  userId: string;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const { toast } = useToast();
+  const [calendlyUrl, setCalendlyUrl] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (!calendlyUrl.trim()) {
+      toast("Veuillez entrer votre URL Calendly", "warning");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const response = await fetch("/api/calendly/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId,
+          calendlyUrl: calendlyUrl.trim(),
+          apiKey: apiKey.trim() || null,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || "Erreur lors de la sauvegarde");
+      }
+
+      toast("Configuration Calendly sauvegardee", "success");
+      onSaved();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Erreur lors de la sauvegarde";
+      toast(message, "error");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+        {/* Header */}
+        <div className="border-b border-gray-100 p-5 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center">
+              <Settings className="w-5 h-5 text-accent" />
+            </div>
+            <h2 className="font-heading font-semibold text-lg text-dark">
+              Configuration Calendly
+            </h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-5 space-y-5">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              <Link2 className="w-4 h-4 inline mr-1" />
+              URL Calendly <span className="text-danger">*</span>
+            </label>
+            <input
+              type="text"
+              value={calendlyUrl}
+              onChange={(e) => setCalendlyUrl(e.target.value)}
+              placeholder="https://calendly.com/votre-nom"
+              className="w-full px-4 py-3 rounded-lg border border-gray-200 bg-gray-50 text-dark placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition-colors"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Votre URL de profil Calendly
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              <Key className="w-4 h-4 inline mr-1" />
+              Cle API (optionnel)
+            </label>
+            <input
+              type="password"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+              className="w-full px-4 py-3 rounded-lg border border-gray-200 bg-gray-50 text-dark placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition-colors"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Necessaire pour la synchronisation automatique.{" "}
+              <a
+                href="https://calendly.com/integrations/api_webhooks"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-accent hover:underline"
+              >
+                Obtenir une cle API
+              </a>
+            </p>
+          </div>
+
+          <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
+            <p className="text-xs text-blue-700">
+              <strong>Note:</strong> Sans cle API, vous pourrez consulter vos reservations
+              depuis l&apos;interface, mais la synchronisation automatique ne sera pas disponible.
+            </p>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="border-t border-gray-100 p-5 flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-3 border border-gray-200 text-gray-600 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+          >
+            Annuler
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={!calendlyUrl.trim() || isSaving}
+            className="flex-1 px-4 py-3 bg-accent hover:bg-accent/90 text-white rounded-lg font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            {isSaving ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Sauvegarde...
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4" />
+                Sauvegarder
+              </>
+            )}
           </button>
         </div>
       </div>

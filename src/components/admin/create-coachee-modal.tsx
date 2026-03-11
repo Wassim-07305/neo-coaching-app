@@ -4,6 +4,7 @@ import { useState } from "react";
 import { X, User, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
+import { insertProfile } from "@/hooks/use-supabase-data";
 
 type CoacheeType = "individuel" | "entreprise";
 
@@ -46,8 +47,14 @@ export function CreateCoacheeModal({ onClose, onCreated }: CreateCoacheeModalPro
 
     setIsCreating(true);
     try {
-      // TODO: Create in Supabase profiles table with role 'coachee'
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      const { error } = await insertProfile({
+        email,
+        first_name: firstName,
+        last_name: lastName,
+        role: "coachee",
+        coaching_type: type,
+      });
+      if (error) throw error;
       toast(`Coachee ${firstName} ${lastName} cree avec succes`, "success");
       onCreated?.({
         first_name: firstName,

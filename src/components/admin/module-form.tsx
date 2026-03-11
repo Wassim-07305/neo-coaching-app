@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { MockModule, ParcoursType } from "@/lib/mock-data";
-import { RichTextEditor } from "./rich-text-editor";
+import { upsertModule } from "@/hooks/use-supabase-data";
+import { useToast } from "@/components/ui/toast";
 
 interface ModuleFormProps {
   module?: MockModule | null;
@@ -23,8 +24,20 @@ interface FormData {
   duration_weeks: number;
 }
 
-export function ModuleForm({ module, isOpen, onClose }: ModuleFormProps) {
-  const [form, setForm] = useState<FormData>({
+function getInitialForm(module?: MockModule | null): FormData {
+  if (module) {
+    return {
+      title: module.title,
+      description: module.description,
+      content_summary: module.content_summary,
+      exercise_json: module.exercise_json,
+      order_index: module.order_index,
+      parcours_type: module.parcours_type,
+      price: module.price,
+      duration_weeks: module.duration_weeks,
+    };
+  }
+  return {
     title: "",
     description: "",
     content_summary: "",
@@ -33,42 +46,64 @@ export function ModuleForm({ module, isOpen, onClose }: ModuleFormProps) {
     parcours_type: "les_deux",
     price: 490,
     duration_weeks: 4,
-  });
+  };
+}
 
-  useEffect(() => {
-    if (module) {
-      setForm({
-        title: module.title,
-        description: module.description,
-        content_summary: module.content_summary,
-        exercise_json: module.exercise_json,
-        order_index: module.order_index,
-        parcours_type: module.parcours_type,
-        price: module.price,
-        duration_weeks: module.duration_weeks,
-      });
-    } else {
-      setForm({
-        title: "",
-        description: "",
-        content_summary: "",
-        exercise_json: "",
-        order_index: 1,
-        parcours_type: "les_deux",
-        price: 490,
-        duration_weeks: 4,
-      });
-    }
-  }, [module]);
+export function ModuleForm({ module, isOpen, onClose }: ModuleFormProps) {
+  const { toast } = useToast();
+  const [isSaving, setIsSaving] = useState(false);
+  // Use module?.id as key to reset form when module changes
+  const initialForm = useMemo(() => getInitialForm(module), [module]);
+  const [form, setForm] = useState<FormData>(initialForm);
+
+  // Reset form when module changes
+  const moduleId = module?.id ?? null;
+  const [prevModuleId, setPrevModuleId] = useState<string | null>(moduleId);
+  if (moduleId !== prevModuleId) {
+    setPrevModuleId(moduleId);
+    setForm(getInitialForm(module));
+  }
 
   if (!isOpen) return null;
 
   const isEditing = !!module;
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    // TODO: Save to Supabase
-    onClose();
+    if (!form.title.trim()) return;
+
+    setIsSaving(true);
+    try {
+      let exerciseObj: Record<string, unknown> | undefined;
+      if (form.exercise_json.trim()) {
+        try {
+          exerciseObj = JSON.parse(form.exercise_json);
+        } catch {
+          toast("Format JSON des exercices invalide", "error");
+          setIsSaving(false);
+          return;
+        }
+      }
+
+      const { error } = await upsertModule({
+        id: module?.id,
+        title: form.title.trim(),
+        description: form.description || undefined,
+        content: { summary: form.content_summary },
+        exercise: exerciseObj,
+        order_index: form.order_index,
+        parcours_type: form.parcours_type,
+        price_cents: form.price * 100,
+        duration_minutes: form.duration_weeks * 7 * 24 * 60,
+      });
+      if (error) throw error;
+      toast(isEditing ? "Module mis a jour" : "Module cree avec succes", "success");
+      onClose();
+    } catch {
+      toast("Erreur lors de la sauvegarde du module", "error");
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   return (
@@ -122,14 +157,16 @@ export function ModuleForm({ module, isOpen, onClose }: ModuleFormProps) {
             />
           </div>
 
-          {/* Content - Rich Text Editor */}
+          {/* Content */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Contenu detaille
             </label>
-            <RichTextEditor
+            <textarea
               value={form.content_summary}
-              onChange={(html) => setForm({ ...form, content_summary: html })}
+              onChange={(e) => setForm({ ...form, content_summary: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent resize-none"
+              rows={4}
               placeholder="Contenu et programme du module..."
             />
           </div>
@@ -219,12 +256,13 @@ export function ModuleForm({ module, isOpen, onClose }: ModuleFormProps) {
           </button>
           <button
             onClick={handleSubmit}
+            disabled={isSaving || !form.title.trim()}
             className={cn(
-              "px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors",
+              "px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed",
               "bg-accent hover:bg-accent/90"
             )}
           >
-            {isEditing ? "Enregistrer" : "Creer le module"}
+            {isSaving ? "Enregistrement..." : isEditing ? "Enregistrer" : "Creer le module"}
           </button>
         </div>
       </div>

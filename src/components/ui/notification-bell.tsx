@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/components/providers/auth-provider";
 import {
   useNotifications,
   type NotificationType,
@@ -40,8 +41,9 @@ interface NotificationBellProps {
 }
 
 export function NotificationBell({ className }: NotificationBellProps) {
+  const { profile } = useAuth();
   const { notifications, unreadCount, markAsRead, markAllAsRead } =
-    useNotifications();
+    useNotifications(profile?.id);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 

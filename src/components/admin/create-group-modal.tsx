@@ -4,6 +4,8 @@ import { useState } from "react";
 import { X, Users, Hash, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
+import { insertGroup } from "@/hooks/use-supabase-data";
+import { useAuth } from "@/components/providers/auth-provider";
 
 type GroupType = "entreprise" | "coaching_individuel" | "general";
 
@@ -35,6 +37,7 @@ const typeOptions: { value: GroupType; label: string; description: string; icon:
 
 export function CreateGroupModal({ onClose, onCreated }: CreateGroupModalProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [name, setName] = useState("");
   const [type, setType] = useState<GroupType>("entreprise");
   const [isCreating, setIsCreating] = useState(false);
@@ -47,8 +50,12 @@ export function CreateGroupModal({ onClose, onCreated }: CreateGroupModalProps) 
 
     setIsCreating(true);
     try {
-      // TODO: Create in Supabase groups table
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      const { error } = await insertGroup({
+        name: name.trim(),
+        type,
+        created_by: user?.id || "",
+      });
+      if (error) throw error;
       toast(`Groupe "${name}" cree avec succes`, "success");
       onCreated?.({ name, type });
       onClose();

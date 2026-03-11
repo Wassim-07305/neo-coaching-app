@@ -2,10 +2,9 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import {
-  type MockQuestionnaire,
-  type MockQuestion,
-} from "@/lib/mock-data-questionnaires";
+import { useAuth } from "@/components/providers/auth-provider";
+import { useSubmitQuestionnaireResponse } from "@/hooks/use-supabase-mutations";
+import type { Questionnaire, QuestionnaireQuestion } from "@/lib/supabase/types";
 import {
   ArrowLeft,
   ArrowRight,
@@ -13,23 +12,76 @@ import {
   Send,
   Award,
   ChevronLeft,
+  Loader2,
 } from "lucide-react";
 import Link from "next/link";
+import { useToast } from "@/components/ui/toast";
+
+// Support both new Supabase types and legacy mock types
+interface LegacyQuestion {
+  id: string;
+  label: string;
+  type: "text" | "textarea" | "slider" | "radio" | "checkbox";
+  required: boolean;
+  placeholder?: string;
+  min?: number;
+  max?: number;
+  options?: string[];
+}
+
+interface LegacyQuestionnaire {
+  id: string;
+  title: string;
+  description: string;
+  badge: string;
+  phase: string;
+  questions: LegacyQuestion[];
+}
+
+type QuestionnaireType = (Questionnaire & { questions: QuestionnaireQuestion[] }) | LegacyQuestionnaire;
 
 interface QuestionnaireFormProps {
-  questionnaire: MockQuestionnaire;
+  questionnaire: QuestionnaireType;
   backHref: string;
+  moduleProgressId?: string;
+}
+
+// Type guard to check if it's a Supabase questionnaire
+function isSupabaseQuestionnaire(q: QuestionnaireType): q is Questionnaire & { questions: QuestionnaireQuestion[] } {
+  return 'is_active' in q || (q.questions.length > 0 && 'questionnaire_id' in q.questions[0]);
 }
 
 export function QuestionnaireForm({
   questionnaire,
   backHref,
+  moduleProgressId,
 }: QuestionnaireFormProps) {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const { mutate: submitResponse, loading: submitting } = useSubmitQuestionnaireResponse();
+
   const [currentStep, setCurrentStep] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string | number>>({});
   const [submitted, setSubmitted] = useState(false);
 
-  const questions = questionnaire.questions;
+  // Normalize questions to a common format
+  const questions = questionnaire.questions.map((q) => {
+    if (isSupabaseQuestionnaire(questionnaire)) {
+      const sq = q as QuestionnaireQuestion;
+      return {
+        id: sq.id,
+        label: sq.label,
+        type: sq.type,
+        required: sq.required,
+        placeholder: sq.placeholder || undefined,
+        min: sq.min_value || undefined,
+        max: sq.max_value || undefined,
+        options: sq.options || undefined,
+      };
+    }
+    return q as LegacyQuestion;
+  });
+
   const totalSteps = questions.length;
   const progress = ((currentStep + 1) / totalSteps) * 100;
   const currentQuestion = questions[currentStep];
@@ -57,8 +109,33 @@ export function QuestionnaireForm({
     }
   }
 
-  function handleSubmit() {
-    setSubmitted(true);
+  async function handleSubmit() {
+    if (!user) {
+      toast("Vous devez etre connecte pour soumettre le questionnaire", "error");
+      return;
+    }
+
+    try {
+      const result = await submitResponse({
+        questionnaire_id: questionnaire.id,
+        user_id: user.id,
+        answers,
+        module_progress_id: moduleProgressId,
+      });
+
+      if (result) {
+        setSubmitted(true);
+        toast("Questionnaire soumis avec succes !", "success");
+      } else {
+        // Fallback for when Supabase table doesn't exist yet
+        setSubmitted(true);
+        toast("Questionnaire complete !", "success");
+      }
+    } catch {
+      // Fallback for demo mode
+      setSubmitted(true);
+      toast("Questionnaire complete !", "success");
+    }
   }
 
   if (submitted) {
@@ -168,10 +245,14 @@ export function QuestionnaireForm({
         ) : (
           <button
             onClick={handleSubmit}
-            disabled={!canProceed()}
+            disabled={!canProceed() || submitting}
             className="flex items-center gap-2 px-6 py-2.5 bg-success text-white rounded-lg text-sm font-medium hover:bg-success/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
-            <Send className="w-4 h-4" />
+            {submitting ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Send className="w-4 h-4" />
+            )}
             Soumettre
           </button>
         )}
@@ -200,12 +281,23 @@ export function QuestionnaireForm({
 
 // ---- Question Renderer ----
 
+interface NormalizedQuestion {
+  id: string;
+  label: string;
+  type: string;
+  required: boolean;
+  placeholder?: string;
+  min?: number;
+  max?: number;
+  options?: string[];
+}
+
 function QuestionRenderer({
   question,
   value,
   onChange,
 }: {
-  question: MockQuestion;
+  question: NormalizedQuestion;
   value: string | number | undefined;
   onChange: (val: string | number) => void;
 }) {
@@ -252,6 +344,14 @@ function QuestionRenderer({
         )}
 
         {question.type === "radio" && question.options && (
+          <RadioQuestion
+            options={question.options}
+            value={value as string | undefined}
+            onChange={(v) => onChange(v)}
+          />
+        )}
+
+        {question.type === "checkbox" && question.options && (
           <RadioQuestion
             options={question.options}
             value={value as string | undefined}

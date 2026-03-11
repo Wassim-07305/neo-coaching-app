@@ -4,10 +4,11 @@ import { cn } from "@/lib/utils";
 import { type MockGroup } from "@/lib/mock-data-community";
 import { Hash, Users, MessageCircle, Plus, Sparkles } from "lucide-react";
 
-interface GroupListProps {
+export interface GroupListProps {
   groups: MockGroup[];
   activeGroupId: string | null;
   onSelectGroup: (groupId: string) => void;
+  onCreateGroup?: () => void;
   isAdmin?: boolean;
 }
 

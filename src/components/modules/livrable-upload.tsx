@@ -15,16 +15,6 @@ import {
 
 type LivrableStatus = "en_attente" | "soumis" | "valide";
 
-interface LivrableSection {
-  id: string;
-  label: string;
-  icon: typeof FileText;
-  type: "text" | "audio" | "video";
-  acceptedFormats?: string;
-  acceptLabel?: string;
-  status: LivrableStatus;
-}
-
 const statusConfig: Record<
   LivrableStatus,
   { label: string; color: string; icon: typeof Check }
@@ -34,7 +24,29 @@ const statusConfig: Record<
   valide: { label: "Valide", color: "text-success bg-success/10", icon: Check },
 };
 
-export function LivrableUpload() {
+// StatusBadge component moved outside of render
+function StatusBadge({ status }: { status: LivrableStatus }) {
+  const config = statusConfig[status];
+  const Icon = config.icon;
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium",
+        config.color
+      )}
+    >
+      <Icon className="w-3 h-3" />
+      {config.label}
+    </span>
+  );
+}
+
+interface LivrableUploadProps {
+  moduleId?: string;
+  userId?: string;
+}
+
+export function LivrableUpload({ moduleId: _moduleId, userId: _userId }: LivrableUploadProps = {}) {
   const [resumeText, setResumeText] = useState("");
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [videoFile, setVideoFile] = useState<File | null>(null);
@@ -47,34 +59,6 @@ export function LivrableUpload() {
 
   const audioRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLInputElement>(null);
-
-  const sections: LivrableSection[] = [
-    {
-      id: "resume",
-      label: "Resume ecrit",
-      icon: FileText,
-      type: "text",
-      status: statuses.resume,
-    },
-    {
-      id: "audio",
-      label: "Enregistrement audio",
-      icon: Mic,
-      type: "audio",
-      acceptedFormats: ".mp3,.wav,.m4a",
-      acceptLabel: "MP3, WAV, M4A",
-      status: statuses.audio,
-    },
-    {
-      id: "video",
-      label: "Video explicative",
-      icon: Video,
-      type: "video",
-      acceptedFormats: ".mp4,.mov,.webm",
-      acceptLabel: "MP4, MOV, WEBM",
-      status: statuses.video,
-    },
-  ];
 
   function handleDrop(
     e: DragEvent<HTMLDivElement>,
@@ -110,22 +94,6 @@ export function LivrableUpload() {
       setStatuses(newStatuses);
       setSubmitting(false);
     }, 1200);
-  }
-
-  function StatusBadge({ status }: { status: LivrableStatus }) {
-    const config = statusConfig[status];
-    const Icon = config.icon;
-    return (
-      <span
-        className={cn(
-          "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium",
-          config.color
-        )}
-      >
-        <Icon className="w-3 h-3" />
-        {config.label}
-      </span>
-    );
   }
 
   return (

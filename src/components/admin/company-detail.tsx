@@ -1,16 +1,21 @@
 "use client";
 
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, FileText, Mail } from "lucide-react";
+import { ArrowLeft, FileText, Mail, UserPlus, Loader2 } from "lucide-react";
 import { KpiGauge } from "@/components/ui/kpi-gauge";
 import { KpiDotGroup } from "@/components/ui/kpi-badge";
+import { InviteEmployeeModal } from "@/components/admin/invite-employee-modal";
 import {
   getCompanyAverageKpis,
   mockCoachees,
   daysAgo,
 } from "@/lib/mock-data";
 import type { MockCompany } from "@/lib/mock-data";
+import { useProfiles, useKpiScores, useModuleProgress } from "@/hooks/use-supabase-data";
+import { formatDistanceToNow } from "date-fns";
+import { fr } from "date-fns/locale";
 
 interface CompanyDetailProps {
   company: MockCompany;
@@ -27,9 +32,69 @@ function getInitials(first: string, last: string): string {
 }
 
 export function CompanyDetail({ company }: CompanyDetailProps) {
-  const kpis = getCompanyAverageKpis(company.id);
-  const employees = mockCoachees.filter((c) => c.company_id === company.id);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // Fetch real data from Supabase
+  const { data: supabaseEmployees, loading: employeesLoading } = useProfiles({ company_id: company.id });
+  const { data: kpiScores } = useKpiScores({ company_id: company.id });
+  const { data: moduleProgressData } = useModuleProgress({ company_id: company.id });
+
+  // Transform Supabase employees to match expected format
+  const employees = useMemo(() => {
+    if (supabaseEmployees && supabaseEmployees.length > 0) {
+      return supabaseEmployees.map((emp) => {
+        const userProgress = moduleProgressData?.filter((mp) => mp.user_id === emp.id) || [];
+        const userKpis = kpiScores?.filter((k) => k.user_id === emp.id) || [];
+        const latestKpi = userKpis.sort((a, b) =>
+          new Date(b.scored_at).getTime() - new Date(a.scored_at).getTime()
+        )[0];
+        const currentModule = userProgress.find((mp) => mp.status === "in_progress");
+
+        return {
+          id: emp.id,
+          first_name: emp.first_name,
+          last_name: emp.last_name,
+          current_module: currentModule?.module?.title || null,
+          kpis: latestKpi ? {
+            investissement: latestKpi.investissement,
+            efficacite: latestKpi.efficacite,
+            participation: latestKpi.participation,
+          } : { investissement: 7, efficacite: 7, participation: 7 },
+          last_activity: emp.updated_at || emp.created_at,
+        };
+      });
+    }
+    // Fallback to mock data
+    return mockCoachees.filter((c) => c.company_id === company.id);
+  }, [supabaseEmployees, moduleProgressData, kpiScores, company.id]);
+
+  // Calculate average KPIs from real data
+  const kpis = useMemo(() => {
+    if (kpiScores && kpiScores.length > 0) {
+      const avgInv = kpiScores.reduce((sum, k) => sum + k.investissement, 0) / kpiScores.length;
+      const avgEff = kpiScores.reduce((sum, k) => sum + k.efficacite, 0) / kpiScores.length;
+      const avgPart = kpiScores.reduce((sum, k) => sum + k.participation, 0) / kpiScores.length;
+      return {
+        investissement: Math.round(avgInv * 10) / 10,
+        efficacite: Math.round(avgEff * 10) / 10,
+        participation: Math.round(avgPart * 10) / 10,
+      };
+    }
+    return getCompanyAverageKpis(company.id);
+  }, [kpiScores, company.id]);
+
   const status = missionStatusStyles[company.mission_status];
+
+  // Format last activity
+  const formatLastActivity = (date: string | undefined) => {
+    if (!date) return "Jamais";
+    try {
+      return formatDistanceToNow(new Date(date), { addSuffix: true, locale: fr });
+    } catch {
+      return daysAgo(date);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -128,13 +193,30 @@ export function CompanyDetail({ company }: CompanyDetailProps) {
 
       {/* Employee list */}
       <div className="bg-white rounded-xl border border-gray-200 p-5">
-        <h3 className="font-heading font-semibold text-sm text-dark mb-4">
-          Collaborateurs ({employees.length})
-        </h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-heading font-semibold text-sm text-dark">
+            Collaborateurs ({employees.length})
+          </h3>
+          <button
+            onClick={() => setShowInviteModal(true)}
+            className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-accent border border-accent/30 rounded-lg hover:bg-accent/5 transition-colors"
+          >
+            <UserPlus className="w-3.5 h-3.5" />
+            Inviter
+          </button>
+        </div>
+
+        {/* Loading state */}
+        {employeesLoading && (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-6 h-6 animate-spin text-accent" />
+          </div>
+        )}
 
         {/* Desktop table */}
-        <div className="hidden md:block overflow-x-auto">
-          <table className="w-full">
+        {!employeesLoading && (
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full">
             <thead>
               <tr className="border-b border-gray-100">
                 <th className="text-left pb-2 text-xs font-semibold text-gray-500 uppercase">&nbsp;</th>
@@ -171,16 +253,18 @@ export function CompanyDetail({ company }: CompanyDetailProps) {
                     />
                   </td>
                   <td className="py-3 text-sm text-gray-500">
-                    {daysAgo(emp.last_activity)}
+                    {formatLastActivity(emp.last_activity)}
                   </td>
                 </tr>
               ))}
-            </tbody>
-          </table>
-        </div>
+              </tbody>
+            </table>
+          </div>
+        )}
 
         {/* Mobile cards */}
-        <div className="md:hidden space-y-3">
+        {!employeesLoading && (
+          <div className="md:hidden space-y-3">
           {employees.map((emp) => (
             <Link
               key={emp.id}
@@ -205,8 +289,39 @@ export function CompanyDetail({ company }: CompanyDetailProps) {
               />
             </Link>
           ))}
-        </div>
+          </div>
+        )}
+
+        {/* Empty state for no employees */}
+        {!employeesLoading && employees.length === 0 && (
+          <div className="text-center py-8">
+            <p className="text-gray-500 text-sm mb-3">
+              Aucun collaborateur pour cette entreprise.
+            </p>
+            <button
+              onClick={() => setShowInviteModal(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-accent text-white rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors"
+            >
+              <UserPlus className="w-4 h-4" />
+              Inviter des salaries
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* Invite employee modal */}
+      {showInviteModal && (
+        <InviteEmployeeModal
+          companyId={company.id}
+          companyName={company.name}
+          onClose={() => setShowInviteModal(false)}
+          onInvited={(newEmployees) => {
+            // Trigger refresh by updating key (forces hook to re-fetch)
+            setRefreshKey((k) => k + 1);
+            console.log("Invited:", newEmployees);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { Sparkles, MessageCircle, ChevronRight } from "lucide-react";
+import { Sparkles, MessageCircle, ChevronRight, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { ParcoursTimeline } from "@/components/coaching/parcours-timeline";
 import { CurrentModuleCard } from "@/components/coaching/current-module-card";
@@ -8,153 +8,143 @@ import { LivrablesSection } from "@/components/coaching/livrables-section";
 import { CertificatesGallery } from "@/components/coaching/certificates-gallery";
 import { SatisfactionHistory } from "@/components/coaching/satisfaction-history";
 import { NextCall } from "@/components/coaching/next-call";
-import { mockCoachees, mockModules } from "@/lib/mock-data";
-import type { MockModuleProgress, MockLivrable } from "@/lib/mock-data";
-import { PushPermissionCard } from "@/components/ui/push-permission-card";
 import { useAuth } from "@/components/providers/auth-provider";
-import { useProfile, useMyModuleProgress, useMyAppointments } from "@/lib/supabase/hooks";
-
-// Fallback mock data
-const fallbackUser = mockCoachees[7]; // Isabelle Fontaine (individuel)
+import {
+  useUserModuleProgress,
+  useModules,
+  useUpcomingAppointments,
+  useLivrables,
+} from "@/hooks/use-supabase-data";
+import type { DisplayLivrable } from "@/components/coaching/livrables-section";
+import { mockCoachees, mockModules } from "@/lib/mock-data";
+import { useMemo } from "react";
+import { format, differenceInDays } from "date-fns";
+import { fr } from "date-fns/locale";
 
 export default function CoachingDashboardPage() {
-  const { profile: authProfile } = useAuth();
-  const { data: supaProfile } = useProfile();
-  const { data: moduleProgress } = useMyModuleProgress();
-  const { data: supaAppointments } = useMyAppointments();
+  const { profile, loading: authLoading } = useAuth();
 
-  // ── User name ──────────────────────────────────────────────
-  const firstName = supaProfile?.first_name ?? authProfile?.first_name ?? fallbackUser.first_name;
+  // Fetch real data from Supabase
+  const { data: moduleProgress, loading: modulesLoading } = useUserModuleProgress(profile?.id);
+  const { data: allModules } = useModules();
+  const { data: appointments } = useUpcomingAppointments();
+  const { data: supabaseLivrables } = useLivrables({ user_id: profile?.id });
 
-  // ── Date ───────────────────────────────────────────────────
-  const today = new Date();
-  const formattedDate = today.toLocaleDateString("fr-FR", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  });
+  // Fallback to mock user if not logged in (Isabelle Fontaine - individual coachee)
+  const mockUser = mockCoachees[7];
 
-  // ── Module progress (parcours) ─────────────────────────────
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const modules: MockModuleProgress[] = moduleProgress
-    ? (moduleProgress as any[]).map((mp) => ({
+  // Transform module progress data
+  const modules = useMemo(() => {
+    if (moduleProgress && moduleProgress.length > 0) {
+      return moduleProgress.map((mp) => ({
         module_id: mp.module_id,
-        module_title: mp.modules?.title || "Module",
-        status: mp.status === "in_progress"
-          ? "en_cours"
-          : mp.status === "validated"
-            ? "complete"
-            : mp.status === "submitted"
-              ? "en_cours"
-              : "non_commence",
-        satisfaction_score: mp.satisfaction_score ?? undefined,
-      }))
-    : fallbackUser.module_progress;
+        module_title: mp.module?.title || "Module",
+        status: mp.status === "validated" ? "complete" as const
+          : mp.status === "in_progress" ? "en_cours" as const
+          : mp.status === "submitted" ? "en_cours" as const
+          : "non_commence" as const,
+        satisfaction_score: mp.satisfaction_score || undefined,
+      }));
+    }
+    return mockUser.module_progress;
+  }, [moduleProgress]);
 
-  // ── Parcours progress ──────────────────────────────────────
-  const totalModules = modules.length;
+  // Calculate parcours progress
+  const totalModules = modules.length || 1;
   const completedModules = modules.filter((m) => m.status === "complete").length;
-  const parcoursProgress = totalModules > 0 ? Math.round((completedModules / totalModules) * 100) : 0;
+  const parcoursProgress = Math.round((completedModules / totalModules) * 100);
 
-  // ── Current module (in_progress) ───────────────────────────
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const mpList = moduleProgress as any[] | null;
-  const currentMp = mpList?.find((mp) => mp.status === "in_progress");
-  const currentModuleTitle = currentMp?.modules?.title
-    ?? fallbackUser.current_module;
-
-  const currentModuleData = currentModuleTitle
-    ? mockModules.find((m) => m.title === currentModuleTitle)
-    : null;
-
+  // Find current module (in progress)
   const currentModuleProgress = modules.find((m) => m.status === "en_cours");
+  const currentModuleName = currentModuleProgress?.module_title;
+  const currentModuleData = useMemo(() => {
+    if (currentModuleName && allModules) {
+      return allModules.find((m) => m.title === currentModuleName);
+    }
+    return mockModules.find((m) => m.title === currentModuleName);
+  }, [currentModuleName, allModules]);
 
-  // ── Livrables ──────────────────────────────────────────────
-  // Build livrables from Supabase module_progress (written_summary_url, audio_url, video_url)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const livrables: MockLivrable[] = mpList
-    ? mpList.flatMap((mp: any) => {
-        const items: MockLivrable[] = [];
-        const title = mp.modules?.title || "Module";
-        const status = mp.status === "validated" ? "valide" as const : "en_attente" as const;
-        const date = mp.submitted_at || mp.created_at;
-        if (mp.written_summary_url) {
-          items.push({
-            id: `${mp.id}-ecrit`,
-            module_title: title,
-            type: "ecrit" as const,
-            submission_date: date,
-            status,
-            file_name: mp.written_summary_url.split("/").pop() || "resume.pdf",
-          });
-        }
-        if (mp.audio_url) {
-          items.push({
-            id: `${mp.id}-audio`,
-            module_title: title,
-            type: "audio" as const,
-            submission_date: date,
-            status,
-            file_name: mp.audio_url.split("/").pop() || "audio.mp3",
-          });
-        }
-        if (mp.video_url) {
-          items.push({
-            id: `${mp.id}-video`,
-            module_title: title,
-            type: "video" as const,
-            submission_date: date,
-            status,
-            file_name: mp.video_url.split("/").pop() || "video.mp4",
-          });
-        }
-        return items;
-      })
-    : fallbackUser.livrables;
+  // Livrables from Supabase with mock fallback
+  const livrables = useMemo<DisplayLivrable[]>(() => {
+    if (supabaseLivrables && supabaseLivrables.length > 0) {
+      return supabaseLivrables.map((l) => ({
+        id: l.id,
+        type: l.type,
+        file_name: l.file_name,
+        status: l.status,
+        module_title: l.module?.title || "",
+      }));
+    }
+    return mockUser.livrables.map((l) => ({
+      id: l.id,
+      type: l.type,
+      file_name: l.file_name,
+      status: l.status,
+      module_title: l.module_title,
+    }));
+  }, [supabaseLivrables]);
 
-  const delivrablesSubmitted = currentModuleTitle
-    ? livrables.filter((l) => l.module_title === currentModuleTitle).length
-    : 0;
-  const delivrablesTotal = 3; // ecrit + audio + video
+  const currentModuleLivrables = livrables.filter((l) => l.module_title === currentModuleName);
+  const delivrablesSubmitted = currentModuleLivrables.length;
+  const delivrablesTotal = 3;
 
-  // ── Certificates ───────────────────────────────────────────
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const certificates = mpList
-    ? mpList
-        .filter((mp: any) => mp.status === "validated" && mp.certificate_url)
-        .map((mp: any) => ({
-          id: mp.id,
-          module_title: mp.modules?.title || "Module",
+  // Certificates from validated modules
+  const certificates = useMemo(() => {
+    if (moduleProgress && moduleProgress.length > 0) {
+      return moduleProgress
+        .filter((mp) => mp.status === "validated")
+        .map((mp) => ({
+          id: `cert-${mp.id}`,
+          module_title: mp.module?.title || "Module",
           earned_date: mp.validated_at || mp.created_at,
-        }))
-    : fallbackUser.certificates;
+        }));
+    }
+    return mockUser.certificates;
+  }, [moduleProgress]);
 
-  // ── Next call ──────────────────────────────────────────────
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const apptList = supaAppointments as any[] | null;
-  const nextAppt = apptList
-    ? apptList.find((a) => new Date(a.datetime_start) > new Date() && a.status === "scheduled")
-    : null;
+  // Next call
+  const nextCall = useMemo(() => {
+    if (appointments && appointments.length > 0) {
+      const appt = appointments[0];
+      const apptDate = new Date(appt.datetime_start);
+      const endDate = new Date(appt.datetime_end);
+      const durationMs = endDate.getTime() - apptDate.getTime();
+      const durationMinutes = Math.round(durationMs / 60000);
+      const durationStr = durationMinutes >= 60 ? `${Math.round(durationMinutes / 60)}h` : `${durationMinutes}min`;
 
-  const nextCall = nextAppt
-    ? {
-        date: nextAppt.datetime_start.split("T")[0],
-        time: new Date(nextAppt.datetime_start).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
-        duration: "1h",
-        zoomLink: nextAppt.zoom_link || "https://zoom.us/j/000000000",
-        daysUntil: Math.ceil((new Date(nextAppt.datetime_start).getTime() - Date.now()) / (1000 * 60 * 60 * 24)),
-      }
-    : {
-        date: "2026-03-02",
-        time: "11:00",
-        duration: "1h",
-        zoomLink: "https://zoom.us/j/777888999",
-        daysUntil: 4,
+      return {
+        date: format(apptDate, "yyyy-MM-dd"),
+        time: format(apptDate, "HH:mm"),
+        duration: durationStr,
+        zoomLink: appt.zoom_link || "https://zoom.us",
+        daysUntil: differenceInDays(apptDate, new Date()),
       };
+    }
+    return {
+      date: "2026-03-02",
+      time: "11:00",
+      duration: "1h",
+      zoomLink: "https://zoom.us/j/777888999",
+      daysUntil: 4,
+    };
+  }, [appointments]);
+
+  const isLoading = authLoading || modulesLoading;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-accent" />
+      </div>
+    );
+  }
+
+  const firstName = profile?.first_name || mockUser.first_name;
+  const today = new Date();
+  const formattedDate = format(today, "EEEE d MMMM", { locale: fr });
 
   return (
     <div className="space-y-5">
-      <PushPermissionCard />
       {/* 1. Welcome Header */}
       <div>
         <div className="flex items-center gap-2">
@@ -186,7 +176,7 @@ export default function CoachingDashboardPage() {
       {currentModuleData && currentModuleProgress && (
         <CurrentModuleCard
           title={currentModuleData.title}
-          description={currentModuleData.content_summary}
+          description={'content_summary' in currentModuleData ? currentModuleData.content_summary : (currentModuleData.description || "")}
           delivrablesSubmitted={delivrablesSubmitted}
           delivrablesTotal={delivrablesTotal}
           estimatedDeadline="2026-04-15"
@@ -195,16 +185,19 @@ export default function CoachingDashboardPage() {
       )}
 
       {/* 4. Mes Livrables */}
-      {currentModuleTitle && (
+      {currentModuleName && (
         <LivrablesSection
           livrables={livrables}
-          currentModuleTitle={currentModuleTitle}
+          currentModuleTitle={currentModuleName}
         />
       )}
 
       {/* 5 & 6. Certificates + Satisfaction side by side on desktop */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        <CertificatesGallery certificates={certificates} />
+        <CertificatesGallery
+          certificates={certificates}
+          coacheeName={`${profile?.first_name || mockUser.first_name} ${profile?.last_name || mockUser.last_name}`}
+        />
         <SatisfactionHistory modules={modules} />
       </div>
 

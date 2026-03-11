@@ -1,7 +1,19 @@
-import Link from "next/link";
-import { Star, ArrowRight } from "lucide-react";
+"use client";
 
-const experts = [
+import Link from "next/link";
+import { Star, ArrowRight, Loader2 } from "lucide-react";
+import { useIntervenants } from "@/hooks/use-supabase-data";
+
+interface ExpertPreview {
+  id: string;
+  initials: string;
+  name: string;
+  domain: string;
+  bio: string;
+  rating: number;
+}
+
+const mockExperts: ExpertPreview[] = [
   {
     id: "1",
     initials: "SB",
@@ -36,7 +48,29 @@ const experts = [
   },
 ];
 
+function getInitials(firstName: string, lastName: string): string {
+  return `${(firstName || "")[0] || ""}${(lastName || "")[0] || ""}`.toUpperCase();
+}
+
 export function ExpertsPreview() {
+  const { data: intervenants, loading } = useIntervenants(true);
+
+  const experts: ExpertPreview[] =
+    intervenants && intervenants.length > 0
+      ? intervenants.slice(0, 4).map((i) => ({
+          id: i.id,
+          initials: i.user
+            ? getInitials(i.user.first_name, i.user.last_name)
+            : (i.domain || "??").substring(0, 2).toUpperCase(),
+          name: i.user
+            ? `${i.user.first_name} ${i.user.last_name}`
+            : "Expert",
+          domain: i.domain || "Coaching",
+          bio: i.bio || "",
+          rating: (i as unknown as { rating?: number }).rating ?? 5,
+        }))
+      : mockExperts;
+
   return (
     <section className="bg-gray-50 py-20 sm:py-24">
       <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
@@ -52,48 +86,54 @@ export function ExpertsPreview() {
         </div>
 
         {/* Expert cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {experts.map((expert) => (
-            <div
-              key={expert.id}
-              className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow text-center"
-            >
-              {/* Avatar */}
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary-medium text-white font-heading font-bold text-lg">
-                {expert.initials}
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-accent" />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {experts.map((expert) => (
+              <div
+                key={expert.id}
+                className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow text-center"
+              >
+                {/* Avatar */}
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary-medium text-white font-heading font-bold text-lg">
+                  {expert.initials}
+                </div>
+
+                {/* Name */}
+                <h3 className="font-heading text-lg font-bold text-dark">
+                  {expert.name}
+                </h3>
+
+                {/* Domain */}
+                <span className="inline-block mt-1 text-sm font-medium text-accent">
+                  {expert.domain}
+                </span>
+
+                {/* Bio */}
+                <p className="mt-3 text-sm text-gray-500 line-clamp-2">
+                  {expert.bio}
+                </p>
+
+                {/* Rating */}
+                <div className="mt-3 flex items-center justify-center gap-0.5">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Star
+                      key={i}
+                      className={`h-4 w-4 ${
+                        i < expert.rating
+                          ? "text-accent fill-accent"
+                          : "text-gray-200"
+                      }`}
+                    />
+                  ))}
+                </div>
               </div>
-
-              {/* Name */}
-              <h3 className="font-heading text-lg font-bold text-dark">
-                {expert.name}
-              </h3>
-
-              {/* Domain */}
-              <span className="inline-block mt-1 text-sm font-medium text-accent">
-                {expert.domain}
-              </span>
-
-              {/* Bio */}
-              <p className="mt-3 text-sm text-gray-500 line-clamp-2">
-                {expert.bio}
-              </p>
-
-              {/* Rating */}
-              <div className="mt-3 flex items-center justify-center gap-0.5">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <Star
-                    key={i}
-                    className={`h-4 w-4 ${
-                      i < expert.rating
-                        ? "text-accent fill-accent"
-                        : "text-gray-200"
-                    }`}
-                  />
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
         {/* CTA */}
         <div className="text-center mt-10">
